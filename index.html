@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Iron Bloom</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="game-container">
+      <canvas id="game"></canvas>
+      <div id="text-box" class="hidden"></div>
+      <div id="touch-controls">
+        <div id="touch-dpad">
+          <button class="touch-btn" data-key="arrowup" id="t-up" aria-label="up">▲</button>
+          <button class="touch-btn" data-key="arrowleft" id="t-left" aria-label="left">◀</button>
+          <button class="touch-btn" data-key="arrowright" id="t-right" aria-label="right">▶</button>
+          <button class="touch-btn" data-key="arrowdown" id="t-down" aria-label="down">▼</button>
+        </div>
+        <button class="touch-btn touch-interact" id="t-interact" aria-label="interact">●</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
