@@ -1,7 +1,7 @@
 * {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
 }
 
 html,
@@ -9,117 +9,174 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #2d2440;
+  background: #2d2030;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   font-family: monospace;
 }
 
 #game-container {
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  background: #6b5468;
+  padding: clamp(8px, 2.2vw, 28px);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 0 24px rgba(0, 0, 0, 0.55),
+    0 12px 30px rgba(0, 0, 0, 0.5);
 }
 
 #game {
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-  background: #2d2440;
   display: block;
+  image-rendering: pixelated;
+  border-radius: 4px;
+  box-shadow:
+    inset 0 4px 12px rgba(0, 0, 0, 0.45),
+    0 0 0 2px rgba(0, 0, 0, 0.3);
+  /* green screen tint — subtle phosphor feel over the canvas */
+  filter: sepia(0.08) saturate(1.05) hue-rotate(30deg) brightness(0.97);
+}
+
+/* "game girl" label inside the bezel, below screen */
+#game-container::after {
+  content: "game girl";
+  display: block;
+  margin-top: 6px;
+  color: #9a8a9c;
+  font-size: 9px;
+  letter-spacing: 3px;
+  font-style: italic;
+  opacity: 0.6;
+  text-align: center;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* HUD */
+#day-label {
+  position: absolute;
+  top: clamp(14px, 3vw, 36px);
+  left: clamp(14px, 3vw, 36px);
+  color: #c8d4a8;
+  font-size: clamp(9px, 1.1vw, 13px);
+  font-family: monospace;
+  letter-spacing: 1px;
+  pointer-events: none;
+  z-index: 5;
 }
 
 #text-box {
   position: absolute;
-  bottom: 8%;
+  bottom: clamp(22px, 4vw, 52px);
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(74, 59, 92, 0.88);
-  color: #f6ecf5;
-  padding: 0.75em 1.25em;
-  border-radius: 4px;
-  font-size: clamp(12px, 1.4vw, 18px);
-  max-width: 70%;
-  text-align: center;
-  pointer-events: none;
-  transition: opacity 0.4s ease;
+  width: 86%;
+  background: rgba(20, 24, 12, 0.96);
+  border: 2px solid #6b7a52;
+  color: #c8d4a8;
+  padding: 10px 14px 16px;
+  font-size: clamp(10px, 1.25vw, 14px);
+  font-family: monospace;
+  letter-spacing: 0.8px;
+  line-height: 1.65;
+  border-radius: 2px;
+  z-index: 10;
 }
 
 #text-box.hidden {
-  opacity: 0;
+  display: none;
 }
 
-#day-label {
+#text-box::after {
+  content: "▼";
   position: absolute;
-  top: 4%;
-  left: 4%;
-  color: #f6ecf5;
-  background: rgba(74, 59, 92, 0.6);
-  padding: 0.3em 0.7em;
-  border-radius: 4px;
-  font-size: clamp(10px, 1.1vw, 14px);
-  pointer-events: none;
-  transition: opacity 0.4s ease;
+  bottom: 5px;
+  right: 9px;
+  font-size: 8px;
+  color: #6b7a52;
+  animation: blink 0.9s step-end infinite;
 }
 
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* touch d-pad */
 #touch-controls {
   display: none;
+  position: absolute;
+  bottom: clamp(10px, 2vw, 24px);
+  left: 0;
+  right: 0;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 clamp(8px, 2vw, 20px);
+  pointer-events: none;
+}
+
+#touch-dpad {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  pointer-events: all;
+}
+
+.touch-btn {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  background: rgba(20, 24, 12, 0.82);
+  border: 2px solid #6b7a52;
+  color: #c8d4a8;
+  font-size: 11px;
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#t-up {
+  top: 0;
+  left: 32px;
+}
+#t-down {
+  bottom: 0;
+  left: 32px;
+}
+#t-left {
+  top: 32px;
+  left: 0;
+}
+#t-right {
+  top: 32px;
+  right: 0;
+}
+
+.touch-interact {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  background: rgba(107, 84, 104, 0.85);
+  border: 2px solid #9a8a9c;
+  border-radius: 50%;
+  font-size: 18px;
+  pointer-events: all;
 }
 
 @media (pointer: coarse) {
   #touch-controls {
     display: flex;
-    position: absolute;
-    bottom: 4%;
-    left: 0;
-    right: 0;
-    justify-content: space-between;
-    padding: 0 4%;
-    pointer-events: none;
-  }
-
-  #touch-dpad {
-    display: grid;
-    grid-template-columns: 48px 48px 48px;
-    grid-template-rows: 48px 48px;
-    gap: 4px;
-    pointer-events: auto;
-  }
-
-  #t-up {
-    grid-column: 2;
-    grid-row: 1;
-  }
-  #t-left {
-    grid-column: 1;
-    grid-row: 2;
-  }
-  #t-right {
-    grid-column: 3;
-    grid-row: 2;
-  }
-  #t-down {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .touch-btn {
-    background: rgba(74, 59, 92, 0.55);
-    color: #f6ecf5;
-    border: none;
-    border-radius: 8px;
-    font-size: 18px;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: none;
-  }
-
-  .touch-interact {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    align-self: flex-end;
-    pointer-events: auto;
-    font-size: 24px;
   }
 }
