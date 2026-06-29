@@ -1,5 +1,11 @@
 import "./style.css";
 import {
+  initAudio,
+  setAmbientEnergy,
+  playChime,
+  playSleepTone,
+} from "./audio.js";
+import {
   ROOM,
   OUTSIDE,
   BATHROOM,
@@ -14,11 +20,6 @@ import {
   DAYS,
   PLANT_STAGES,
 } from "./rooms.js";
-// audio disabled for now — stub functions so call sites don't need changes
-function initAudio() {}
-function setAmbientEnergy() {}
-function playChime() {}
-function playSleepTone() {}
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -29,8 +30,6 @@ const LOGICAL_W = COLS * TILE_SIZE;
 const LOGICAL_H = ROWS * TILE_SIZE;
 
 function resize() {
-  // account for the bezel border (computed via CSS clamp) so the
-  // bordered canvas fits fully within the viewport
   const borderPx = Math.min(28, Math.max(8, window.innerWidth * 0.022));
   const availW = window.innerWidth - borderPx * 2;
   const availH = window.innerHeight - borderPx * 2;
@@ -167,7 +166,6 @@ window.addEventListener("keyup", (e) => {
   keys.delete(e.key.toLowerCase());
 });
 
-// touch controls — map to the same key set / interact function
 document
   .querySelectorAll(".touch-dpad .touch-btn, #touch-dpad .touch-btn")
   .forEach((btn) => {
@@ -345,6 +343,7 @@ function interact() {
     showWithFollowup("diffuser", 3500, 720);
     return;
   }
+
   if (tile === 23) {
     showLine(day.bathroomDoor, 1800);
     playChime(560);
@@ -456,7 +455,7 @@ function interact() {
 function sleep() {
   const day = currentDay();
   showLine(day.sleepLine, null);
-  playSleepTone();
+  playSleepTone(day.isLast); // ← passes isLast so day 6 resolves upward
   state.transitioning = true;
   setTimeout(() => {
     if (day.isLast) {
@@ -525,11 +524,9 @@ function update() {
     if (canStandAt(nx, state.player.y)) state.player.x = nx;
     const ny = state.player.y + dy * speed;
     if (canStandAt(state.player.x, ny)) state.player.y = ny;
-    // moving resets idle tracking
     state.idleTime = 0;
     state.idleLineShown = false;
   } else {
-    // standing still — check if facing the window
     if (facingTile() === 4 && !state.transitioning) {
       state.idleTime += 1 / 60;
       if (
@@ -548,71 +545,63 @@ function update() {
 }
 
 const TILE_COLORS = {
-  0: "#9ca878", // floor — olive-sage green
-  1: "#7d8a5e", // wall — deeper olive
-  2: "#c9c98a", // bed — warm khaki-green accent
-  4: "#dbe0b0", // window — pale lichen
-  5: "#6e7a52", // door — dark olive
-  6: "#aeb888", // rug — mid olive
-  7: "#7d8a5e", // mirror — drawn over wall color
-  9: "#9ca878", // nightstand — drawn over floor color
-  10: "#9ca878", // desk — drawn over floor color
-  11: "#9ca878", // tea station — drawn over floor color
-  12: "#9ca878", // diffuser — drawn over floor color
-  13: "#9ca878", // desk center tile
-  16: "#9ca878", // snack table left
-  17: "#9ca878", // desk right tile — electronics
-  18: "#9ca878", // snack table right
-  20: "#9ca878", // couch left
-  21: "#9ca878", // couch right
-  22: "#9ca878", // coffee table
-  23: "#6e7a52", // bathroom door
-  33: "#8a7a5a", // kitchen door
-  27: "#9ca878", // bedside oil — drawn over floor color
+  0: "#9ca878",
+  1: "#7d8a5e",
+  2: "#c9c98a",
+  4: "#dbe0b0",
+  5: "#6e7a52",
+  6: "#aeb888",
+  7: "#7d8a5e",
+  9: "#9ca878",
+  10: "#9ca878",
+  11: "#9ca878",
+  12: "#9ca878",
+  13: "#9ca878",
+  16: "#9ca878",
+  17: "#9ca878",
+  18: "#9ca878",
+  20: "#9ca878",
+  21: "#9ca878",
+  22: "#9ca878",
+  23: "#6e7a52",
+  33: "#8a7a5a",
+  27: "#9ca878",
 };
 
 const OUTSIDE_COLORS = {
-  0: "#8c9968", // grass — olive green
-  1: "#6e7a52", // hedge — deep olive
-  5: "#9ca878", // door path — olive-sage
-  8: "#7d8a5e", // tree base — drawn over
+  0: "#8c9968",
+  1: "#6e7a52",
+  5: "#9ca878",
+  8: "#7d8a5e",
 };
 
 const BATHROOM_COLORS = {
-  0: "#a8c0b0", // floor — cool sage-mint, distinct from bedroom warmth
-  1: "#7d9488", // wall — deeper teal-sage
-  5: "#6e7a52", // door
-  24: "#a8c0b0", // tub — drawn over floor
-  25: "#a8c0b0", // sink — drawn over floor
-  26: "#a8c0b0", // cabinet — drawn over floor
-  28: "#a8c0b0", // oil — drawn over floor
-  34: "#a8c0b0", // toilet
+  0: "#a8c0b0",
+  1: "#7d9488",
+  5: "#6e7a52",
+  24: "#a8c0b0",
+  25: "#a8c0b0",
+  26: "#a8c0b0",
+  28: "#a8c0b0",
+  34: "#a8c0b0",
 };
 
 const KITCHEN_COLORS = {
-  0: "#c4b896", // floor — warm sandy olive, distinct from other rooms
-  1: "#8a7a5a", // wall — warm brown-olive
-  5: "#6e7a52", // door
-  29: "#c4b896", // stove — drawn over floor
-  30: "#c4b896", // counter left — drawn over floor
-  32: "#c4b896", // counter right — drawn over floor
-  31: "#c4b896", // fridge — drawn over floor
+  0: "#c4b896",
+  1: "#8a7a5a",
+  5: "#6e7a52",
+  29: "#c4b896",
+  30: "#c4b896",
+  32: "#c4b896",
+  31: "#c4b896",
 };
 
 function drawRoom() {
   const grid = currentGrid();
   let palette = TILE_COLORS;
-  let fallback = TILE_COLORS[0];
-  if (state.scene === "outside") {
-    palette = OUTSIDE_COLORS;
-    fallback = OUTSIDE_COLORS[0];
-  } else if (state.scene === "bathroom") {
-    palette = BATHROOM_COLORS;
-    fallback = BATHROOM_COLORS[0];
-  } else if (state.scene === "kitchen") {
-    palette = KITCHEN_COLORS;
-    fallback = KITCHEN_COLORS[0];
-  }
+  if (state.scene === "outside") palette = OUTSIDE_COLORS;
+  else if (state.scene === "bathroom") palette = BATHROOM_COLORS;
+  else if (state.scene === "kitchen") palette = KITCHEN_COLORS;
 
   for (let row = 0; row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
@@ -639,80 +628,37 @@ function drawRoom() {
         drawFloorTile(x, y, tile, palette);
       }
 
-      if (tile === 1 && state.scene === "room") {
-        drawWallTexture(x, y, col, row);
-      }
-      if (tile === 2) {
-        drawBed(x, y, col, row);
-      }
-      if (tile === 4) {
-        drawWindow(x, y);
-      }
-      if (tile === 5 && state.scene !== "outside") {
-        drawDoor(x, y);
-      }
-      if (tile === 23) {
-        drawBathroomDoor(x, y);
-      }
-      if (tile === 33) {
-        drawKitchenDoor(x, y);
-      }
-      if (tile === 6) {
-        drawRug(x, y, row, col);
-      }
-      if (tile === 7) {
-        drawMirror(x, y);
-      }
-      if (tile === 9) {
-        drawNightstand(x, y);
-      }
-      if (tile === 27) {
-        drawBedsideOil(x, y);
-      }
+      if (tile === 1 && state.scene === "room") drawWallTexture(x, y, col, row);
+      if (tile === 2) drawBed(x, y, col, row);
+      if (tile === 4) drawWindow(x, y);
+      if (tile === 5 && state.scene !== "outside") drawDoor(x, y);
+      if (tile === 23) drawBathroomDoor(x, y);
+      if (tile === 33) drawKitchenDoor(x, y);
+      if (tile === 6) drawRug(x, y, row, col);
+      if (tile === 7) drawMirror(x, y);
+      if (tile === 9) drawNightstand(x, y);
+      if (tile === 27) drawBedsideOil(x, y);
       if (tile === 24) {
         const isLeftHalf = grid[row][col - 1] !== 24;
         const isTopHalf =
           grid[row - 1] === undefined || grid[row - 1][col] !== 24;
         drawTub(x, y, isLeftHalf, isTopHalf);
       }
-      if (tile === 34) {
-        drawToilet(x, y);
-      }
-      if (tile === 26) {
-        drawCabinet(x, y);
-      }
-      if (tile === 28) {
-        drawBathroomOil(x, y);
-      }
-      if (tile === 10) {
-        drawDesk(x, y, "left");
-      }
-      if (tile === 13) {
-        drawDesk(x, y, "center");
-      }
-      if (tile === 17) {
-        drawDesk(x, y, "right");
-      }
-      if (tile === 20) {
-        drawCouch(x, y, "left");
-      }
-      if (tile === 21) {
-        drawCouch(x, y, "right");
-      }
+      if (tile === 34) drawToilet(x, y);
+      if (tile === 26) drawCabinet(x, y);
+      if (tile === 28) drawBathroomOil(x, y);
+      if (tile === 10) drawDesk(x, y, "left");
+      if (tile === 13) drawDesk(x, y, "center");
+      if (tile === 17) drawDesk(x, y, "right");
+      if (tile === 20) drawCouch(x, y, "left");
+      if (tile === 21) drawCouch(x, y, "right");
       if (tile === 22) {
-        // determine left/right by checking the tile to the left
         const isLeftHalf = grid[row][col - 1] !== 22;
         drawCoffeeTable(x, y, isLeftHalf ? "left" : "right");
       }
-      if (tile === 29) {
-        drawStove(x, y);
-      }
-      if (tile === 30) {
-        drawCounter(x, y, "left");
-      }
-      if (tile === 32) {
-        drawCounter(x, y, "right");
-      }
+      if (tile === 29) drawStove(x, y);
+      if (tile === 30) drawCounter(x, y, "left");
+      if (tile === 32) drawCounter(x, y, "right");
       if (tile === 31) {
         const isBottomHalf =
           grid[row + 1] === undefined || grid[row + 1][col] !== 31;
@@ -722,8 +668,6 @@ function drawRoom() {
   }
 }
 
-// floor with a subtle two-tone checker/dither so it doesn't look like
-// a single flat color block
 function drawFloorTile(x, y, tile, palette) {
   const colors = palette || TILE_COLORS;
   const base = colors[tile] ?? colors[0];
@@ -731,14 +675,12 @@ function drawFloorTile(x, y, tile, palette) {
   ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
 
   if (tile === 0 || tile === 3) {
-    // very subtle plank lines — just enough to read as floor texture
     ctx.strokeStyle = "rgba(110, 125, 75, 0.12)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x, y + TILE_SIZE);
     ctx.lineTo(x + TILE_SIZE, y + TILE_SIZE);
     ctx.stroke();
-    // staggered vertical seam, every other tile
     if ((x / TILE_SIZE) % 2 === 0) {
       ctx.beginPath();
       ctx.moveTo(x + TILE_SIZE * 0.5, y);
@@ -749,7 +691,6 @@ function drawFloorTile(x, y, tile, palette) {
 }
 
 function drawWallTexture(x, y, col, row) {
-  // vertical paneling seam
   ctx.strokeStyle = "rgba(90, 105, 60, 0.25)";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -757,7 +698,6 @@ function drawWallTexture(x, y, col, row) {
   ctx.lineTo(x + TILE_SIZE / 2, y + TILE_SIZE);
   ctx.stroke();
 
-  // small decorative dot motif, centered in each panel half
   ctx.fillStyle = "rgba(255, 255, 255, 0.10)";
   ctx.beginPath();
   ctx.arc(x + TILE_SIZE * 0.25, y + TILE_SIZE * 0.5, 2, 0, Math.PI * 2);
@@ -798,11 +738,8 @@ function drawOutsideTile(tile, x, y) {
   ctx.fillStyle = base;
   ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
 
-  if (tile === 0) {
-    drawGrassTexture(x, y);
-  }
+  if (tile === 0) drawGrassTexture(x, y);
   if (tile === 1) {
-    // hedge texture — small leafy bumps
     ctx.fillStyle = "rgba(140, 190, 165, 0.5)";
     for (let i = 0; i < 4; i++) {
       for (let j = 0; j < 3; j++) {
@@ -818,77 +755,59 @@ function drawOutsideTile(tile, x, y) {
       ctx.fill();
     }
   }
-  if (tile === 5) {
-    drawDoor(x, y);
-  }
+  if (tile === 5) drawDoor(x, y);
 }
 
 function drawBed(x, y, col, row) {
   const S = TILE_SIZE / 20;
-  // left half = the tile to the left is NOT also a bed tile
   const grid = currentGrid();
   const isLeftHalf = col === 0 || (grid[row] && grid[row][col - 1] !== 2);
   if (!isLeftHalf) return;
 
   const w = TILE_SIZE * 2;
   const h = TILE_SIZE * 2;
-  const lift = 22 * S; // how far the headboard lifts above the tile top
+  const lift = 22 * S;
 
-  // --- headboard (extends above the tile into row above) ---
   ctx.fillStyle = "#cdb6a4";
   ctx.fillRect(x + 2 * S, y - lift, w - 4 * S, lift + 6 * S);
-  // headboard panel inset
   ctx.fillStyle = "#b89c89";
   ctx.fillRect(x + 5 * S, y - lift + 3 * S, w - 10 * S, lift - 4 * S);
-  // headboard panel highlight
   ctx.fillStyle = "#d4c0aa";
   ctx.fillRect(x + 5 * S, y - lift + 3 * S, w - 10 * S, 2 * S);
-  // headboard top edge
   ctx.fillStyle = "#a98a76";
   ctx.fillRect(x + 2 * S, y - lift, w - 4 * S, 2.5 * S);
-  // headboard front face (depth illusion)
   ctx.fillStyle = "#9a7d6a";
   ctx.fillRect(x + 2 * S, y + 4 * S, w - 4 * S, 3 * S);
 
-  // --- bed frame ---
   ctx.fillStyle = "#cdb6a4";
   ctx.fillRect(x, y, w, h);
-  // side rails
   ctx.fillStyle = "#b89c89";
   ctx.fillRect(x, y, 3 * S, h);
   ctx.fillRect(x + w - 3 * S, y, 3 * S, h);
-  // footboard
   ctx.fillStyle = "#b89c89";
   ctx.fillRect(x, y + h - 5 * S, w, 5 * S);
   ctx.fillStyle = "#a98a76";
   ctx.fillRect(x, y + h - 5 * S, w, 1.5 * S);
 
-  // --- mattress ---
   ctx.fillStyle = "#f6cfe0";
   ctx.fillRect(x + 3 * S, y + 6 * S, w - 6 * S, h - 12 * S);
 
-  // --- pillow (properly stuffed, rounded, with depth) ---
   const pw = (w - 18 * S) / 2;
   const ph = 12 * S;
   const py2 = y + 8 * S;
   for (let p = 0; p < 2; p++) {
     const px2 = x + 5 * S + p * (pw + 8 * S);
-    // pillow shadow/depth (bottom edge)
     ctx.fillStyle = "#e8c4d8";
     ctx.fillRect(px2 + 1.5 * S, py2 + 2 * S, pw, ph);
-    // pillow main fill
     ctx.fillStyle = "#fde8f1";
     ctx.fillRect(px2, py2, pw, ph);
-    // pillow top highlight
     ctx.fillStyle = "#fffafc";
     ctx.globalAlpha = 0.7;
     ctx.fillRect(px2 + 2 * S, py2 + 1.5 * S, pw - 4 * S, 3 * S);
     ctx.globalAlpha = 1;
-    // pillow border stitch
     ctx.strokeStyle = "rgba(217, 169, 181, 0.6)";
     ctx.lineWidth = 1.5 * S;
     ctx.strokeRect(px2 + 2 * S, py2 + 2 * S, pw - 4 * S, ph - 4 * S);
-    // rounded corners suggestion (corner dots)
     ctx.fillStyle = "rgba(217, 169, 181, 0.4)";
     ctx.beginPath();
     ctx.arc(px2 + 2.5 * S, py2 + 2.5 * S, 1.5 * S, 0, Math.PI * 2);
@@ -902,7 +821,6 @@ function drawBed(x, y, col, row) {
     ctx.beginPath();
     ctx.arc(px2 + pw - 2.5 * S, py2 + ph - 2.5 * S, 1.5 * S, 0, Math.PI * 2);
     ctx.fill();
-    // center puff crease
     ctx.strokeStyle = "rgba(217, 169, 181, 0.3)";
     ctx.lineWidth = S;
     ctx.beginPath();
@@ -911,45 +829,33 @@ function drawBed(x, y, col, row) {
     ctx.stroke();
   }
 
-  // --- blanket (folded down from below the pillows) ---
   const bTop = y + 8 * S + 12 * S + 2 * S;
   ctx.fillStyle = "#e9b8cb";
   ctx.fillRect(x + 3 * S, bTop, w - 6 * S, h - 5 * S - bTop + y);
-  // blanket fold top highlight
   ctx.fillStyle = "#f0c8d8";
   ctx.fillRect(x + 3 * S, bTop, w - 6 * S, 3 * S);
-  // vertical quilt lines
   ctx.fillStyle = "#dba6bd";
   const bH = h - 5 * S - bTop + y;
   for (let i = 1; i < 5; i++) {
     ctx.fillRect(x + 3 * S + i * ((w - 6 * S) / 5), bTop, 1 * S, bH);
   }
-  // horizontal quilt line
   ctx.fillRect(x + 3 * S, bTop + bH * 0.5, w - 6 * S, 1 * S);
 }
 
 function drawWindow(x, y) {
   const S = TILE_SIZE / 20;
-
-  // outer frame
   ctx.fillStyle = "#cdb6a4";
   ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-
-  // sill (bottom ledge)
   ctx.fillStyle = "#fffaf0";
   ctx.fillRect(x + 1 * S, y + TILE_SIZE - 6 * S, TILE_SIZE - 2 * S, 5 * S);
   ctx.fillStyle = "#f3e6d8";
   ctx.fillRect(x + 1 * S, y + TILE_SIZE - 6 * S, TILE_SIZE - 2 * S, 1.5 * S);
-
-  // glass panes, two-tone gradient feel
   ctx.fillStyle = "#fdf3d3";
   ctx.fillRect(x + 3 * S, y + 3 * S, TILE_SIZE - 6 * S, TILE_SIZE - 10 * S);
   ctx.fillStyle = "#fffcf0";
   ctx.fillRect(x + 3 * S, y + 3 * S, TILE_SIZE - 6 * S, 6 * S);
   ctx.fillStyle = "#fce8b8";
   ctx.fillRect(x + 3 * S, y + TILE_SIZE - 12 * S, TILE_SIZE - 6 * S, 5 * S);
-
-  // mullion cross bars
   ctx.strokeStyle = "#e8d6ec";
   ctx.lineWidth = 1.5 * S;
   ctx.beginPath();
@@ -958,8 +864,6 @@ function drawWindow(x, y) {
   ctx.moveTo(x + 3 * S, y + TILE_SIZE / 2);
   ctx.lineTo(x + TILE_SIZE - 3 * S, y + TILE_SIZE / 2);
   ctx.stroke();
-
-  // outer frame border
   ctx.strokeStyle = "#b89c89";
   ctx.lineWidth = 1.5 * S;
   ctx.strokeRect(
@@ -968,12 +872,9 @@ function drawWindow(x, y) {
     TILE_SIZE - 3 * S,
     TILE_SIZE - 3 * S,
   );
-
-  // curtain edges
   ctx.fillStyle = "rgba(232, 214, 236, 0.75)";
   ctx.fillRect(x, y, 4 * S, TILE_SIZE);
   ctx.fillRect(x + TILE_SIZE - 4 * S, y, 4 * S, TILE_SIZE);
-  // curtain folds
   ctx.strokeStyle = "rgba(217, 169, 181, 0.4)";
   ctx.lineWidth = S;
   for (let i = 0; i < 2; i++) {
@@ -990,14 +891,10 @@ function drawWindow(x, y) {
 
 function drawDoor(x, y) {
   const S = TILE_SIZE / 20;
-
-  // door frame
   ctx.fillStyle = "#7a6688";
   ctx.fillRect(x + 1 * S, y, TILE_SIZE - 2 * S, TILE_SIZE);
-  // door panel
   ctx.fillStyle = "#9c84ab";
   ctx.fillRect(x + 2.5 * S, y + 1 * S, TILE_SIZE - 5 * S, TILE_SIZE - 2 * S);
-  // inset panels
   ctx.fillStyle = "#b9a8c9";
   ctx.fillRect(x + 4 * S, y + 3 * S, TILE_SIZE - 8 * S, TILE_SIZE * 0.4);
   ctx.fillRect(
@@ -1006,7 +903,6 @@ function drawDoor(x, y) {
     TILE_SIZE - 8 * S,
     TILE_SIZE * 0.38,
   );
-  // panel highlight edges
   ctx.strokeStyle = "rgba(255,255,255,0.18)";
   ctx.lineWidth = S;
   ctx.strokeRect(x + 4 * S, y + 3 * S, TILE_SIZE - 8 * S, TILE_SIZE * 0.4);
@@ -1016,7 +912,6 @@ function drawDoor(x, y) {
     TILE_SIZE - 8 * S,
     TILE_SIZE * 0.38,
   );
-  // doorknob
   ctx.fillStyle = "#f3eef7";
   ctx.beginPath();
   ctx.arc(x + TILE_SIZE - 7 * S, y + TILE_SIZE / 2, 2 * S, 0, Math.PI * 2);
@@ -1029,59 +924,42 @@ function drawDoor(x, y) {
 
 function drawRug(x, y, row, col) {
   const S = TILE_SIZE / 20;
-  // rug spans a 4-wide, 3-tall block starting at row 3, col 5
   const RUG_ROW = 7,
     RUG_COL = 2,
     RUG_W = 2,
     RUG_H = 2;
-  if (row !== RUG_ROW || col !== RUG_COL) return; // draw once, from top-left
-
+  if (row !== RUG_ROW || col !== RUG_COL) return;
   const w = TILE_SIZE * RUG_W;
   const h = TILE_SIZE * RUG_H;
-
-  // soft drop shadow under the rug
   ctx.fillStyle = "rgba(0,0,0,0.06)";
   ctx.fillRect(x + 1 * S, y + 1 * S, w, h);
-
-  // base rug fill — close to floor tone, gentle presence rather than a bold accent
   ctx.fillStyle = "#a9b58a";
   ctx.fillRect(x, y, w, h);
-
-  // woven texture stripes
   ctx.fillStyle = "rgba(125, 138, 94, 0.15)";
   for (let i = 0; i < RUG_H * 2; i++) {
     ctx.fillRect(x, y + i * (h / (RUG_H * 2)), w, (h / (RUG_H * 2)) * 0.5);
   }
-
-  // outer border
   ctx.strokeStyle = "rgba(125, 138, 94, 0.35)";
   ctx.lineWidth = 1.5 * S;
   ctx.strokeRect(x + 3 * S, y + 3 * S, w - 6 * S, h - 6 * S);
-
-  // inner border
   ctx.strokeStyle = "rgba(125, 138, 94, 0.22)";
   ctx.lineWidth = 1 * S;
   ctx.strokeRect(x + 7 * S, y + 7 * S, w - 14 * S, h - 14 * S);
-
-  // corner motifs
   ctx.fillStyle = "rgba(125, 138, 94, 0.25)";
   const dot = 1.5 * S;
-  const corners = [
+  for (const [cx2, cy2] of [
     [x + 5 * S, y + 5 * S],
     [x + w - 5 * S, y + 5 * S],
     [x + 5 * S, y + h - 5 * S],
     [x + w - 5 * S, y + h - 5 * S],
-  ];
-  for (const [cx2, cy2] of corners) {
+  ]) {
     ctx.beginPath();
     ctx.arc(cx2, cy2, dot, 0, Math.PI * 2);
     ctx.fill();
   }
-
-  // central diamond motif
   ctx.fillStyle = "rgba(196, 156, 168, 0.18)";
-  const mcx = x + w / 2;
-  const mcy = y + h / 2;
+  const mcx = x + w / 2,
+    mcy = y + h / 2;
   ctx.beginPath();
   ctx.moveTo(mcx, mcy - 6 * S);
   ctx.lineTo(mcx + 6 * S, mcy);
@@ -1096,9 +974,7 @@ function drawRug(x, y, row, col) {
 
 function drawMirror(x, y) {
   const S = TILE_SIZE / 20;
-  const lift = 28 * S; // taller — more prominent vanity mirror
-
-  // floor shadow
+  const lift = 28 * S;
   ctx.fillStyle = "rgba(20, 21, 15, 0.18)";
   ctx.beginPath();
   ctx.ellipse(
@@ -1111,17 +987,12 @@ function drawMirror(x, y) {
     Math.PI * 2,
   );
   ctx.fill();
-
-  // base — wider decorative feet
   ctx.fillStyle = "#8a73a0";
   ctx.fillRect(x + 3 * S, y + TILE_SIZE - 3 * S, 6 * S, 3 * S);
   ctx.fillRect(x + TILE_SIZE - 9 * S, y + TILE_SIZE - 3 * S, 6 * S, 3 * S);
-  // base top highlight
   ctx.fillStyle = "#a090b8";
   ctx.fillRect(x + 3 * S, y + TILE_SIZE - 3 * S, 6 * S, 1 * S);
   ctx.fillRect(x + TILE_SIZE - 9 * S, y + TILE_SIZE - 3 * S, 6 * S, 1 * S);
-
-  // center support post — wider, more solid
   ctx.fillStyle = "#9a78b8";
   ctx.fillRect(
     x + TILE_SIZE / 2 - 2.5 * S,
@@ -1131,16 +1002,9 @@ function drawMirror(x, y) {
   );
   ctx.fillStyle = "#b090d0";
   ctx.fillRect(x + TILE_SIZE / 2 - 1 * S, y + TILE_SIZE - 7 * S, 2 * S, 7 * S);
-
-  // outer frame — proper oval with visible border
   const frameCY = y + TILE_SIZE - 8 * S - lift / 2;
   const frameRX = TILE_SIZE * 0.44;
   const frameRY = lift / 2 + 3 * S;
-  ctx.fillStyle = "#c9a8de";
-  ctx.beginPath();
-  ctx.ellipse(x + TILE_SIZE / 2, frameCY, frameRX, frameRY, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // frame inner shadow (depth)
   ctx.fillStyle = "#a080c0";
   ctx.beginPath();
   ctx.ellipse(x + TILE_SIZE / 2, frameCY, frameRX, frameRY, 0, 0, Math.PI * 2);
@@ -1157,8 +1021,6 @@ function drawMirror(x, y) {
     Math.PI * 2,
   );
   ctx.fill();
-
-  // glass surface
   ctx.fillStyle = "#f0eaff";
   ctx.beginPath();
   ctx.ellipse(
@@ -1171,8 +1033,6 @@ function drawMirror(x, y) {
     Math.PI * 2,
   );
   ctx.fill();
-
-  // reflection tint — slight warm cast
   ctx.fillStyle = "rgba(255, 245, 200, 0.12)";
   ctx.beginPath();
   ctx.ellipse(
@@ -1185,8 +1045,6 @@ function drawMirror(x, y) {
     Math.PI * 2,
   );
   ctx.fill();
-
-  // two highlight blobs — gives it a real glass feel
   ctx.fillStyle = "rgba(255,255,255,0.65)";
   ctx.beginPath();
   ctx.ellipse(
@@ -1216,33 +1074,25 @@ function drawMirror(x, y) {
 function drawNightstand(x, y) {
   const S = TILE_SIZE / 20;
   const lift = 22 * S;
-
-  // table top face (front depth edge)
   ctx.fillStyle = "#a98fa3";
   ctx.fillRect(x + 1 * S, y + 1 * S, TILE_SIZE - 2 * S, 3 * S);
-  // table top surface
   ctx.fillStyle = "#cdb6c4";
   ctx.fillRect(x + 1 * S, y - 4 * S, TILE_SIZE - 2 * S, 5 * S);
   ctx.fillStyle = "#bda3b6";
   ctx.fillRect(x + 1 * S, y - 4 * S, TILE_SIZE - 2 * S, 1.5 * S);
-  // table legs
   ctx.fillStyle = "#a98fa3";
   ctx.fillRect(x + 3 * S, y + 3 * S, 2.5 * S, TILE_SIZE - 4 * S);
   ctx.fillRect(x + TILE_SIZE - 5.5 * S, y + 3 * S, 2.5 * S, TILE_SIZE - 4 * S);
-  // table front face panel
   ctx.fillStyle = "#bda3b6";
   ctx.fillRect(x + 2 * S, y + 3 * S, TILE_SIZE - 4 * S, 4 * S);
   ctx.fillStyle = "#a98fa3";
   ctx.fillRect(x + 4 * S, y + 4 * S, TILE_SIZE - 8 * S, 2 * S);
-
-  // pill bottle — taller, more detailed
   ctx.fillStyle = "#f3e6f0";
   ctx.fillRect(x + 4 * S, y - lift, 8 * S, lift - 1 * S);
   ctx.fillStyle = "#7fc0a6";
-  ctx.fillRect(x + 4 * S, y - lift, 8 * S, 4 * S); // cap
+  ctx.fillRect(x + 4 * S, y - lift, 8 * S, 4 * S);
   ctx.fillStyle = "#6aab92";
-  ctx.fillRect(x + 5 * S, y - lift + 1 * S, 6 * S, 2 * S); // cap highlight
-  // label
+  ctx.fillRect(x + 5 * S, y - lift + 1 * S, 6 * S, 2 * S);
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(x + 5 * S, y - lift + 6 * S, 6 * S, 5 * S);
   ctx.strokeStyle = "rgba(127, 192, 166, 0.7)";
@@ -1253,20 +1103,17 @@ function drawNightstand(x, y) {
     ctx.lineTo(x + 10.5 * S, y - lift + (7.5 + i * 1.3) * S);
     ctx.stroke();
   }
-  // bottle shadow on table
   ctx.fillStyle = "rgba(0,0,0,0.1)";
   ctx.fillRect(x + 5 * S, y - 1 * S, 8 * S, 2 * S);
-
-  // beet juice glass — tall, deep red, beside the bottle
   ctx.fillStyle = "#f3e6f0";
   ctx.fillRect(x + 15 * S, y - 12 * S, 7 * S, 12 * S);
   ctx.fillStyle = "#c44569";
   ctx.fillRect(x + 15 * S, y - 10 * S, 7 * S, 10 * S);
   ctx.fillStyle = "#e0719a";
-  ctx.fillRect(x + 15 * S, y - 10 * S, 7 * S, 2 * S); // juice top surface
+  ctx.fillRect(x + 15 * S, y - 10 * S, 7 * S, 2 * S);
   ctx.fillStyle = "#ffffff";
   ctx.globalAlpha = 0.25;
-  ctx.fillRect(x + 16 * S, y - 10 * S, 2 * S, 10 * S); // glass shine
+  ctx.fillRect(x + 16 * S, y - 10 * S, 2 * S, 10 * S);
   ctx.globalAlpha = 1;
   ctx.strokeStyle = "rgba(200,80,120,0.4)";
   ctx.lineWidth = S;
@@ -1275,46 +1122,34 @@ function drawNightstand(x, y) {
 
 function drawDesk(x, y, position) {
   const S = TILE_SIZE / 20;
-  if (position !== "left") return; // draw everything from left tile
-
+  if (position !== "left") return;
   const w = TILE_SIZE * 3;
-
-  // --- bench surface across all three tiles ---
   ctx.fillStyle = "#b89c89";
   ctx.fillRect(x, y + 17 * S, w, 6 * S);
   ctx.fillStyle = "#a98a76";
   ctx.fillRect(x, y + 17 * S, w, 2 * S);
-  // bench legs
   ctx.fillStyle = "#9a7d6a";
   ctx.fillRect(x + 2 * S, y + 23 * S, 3 * S, 4 * S);
   ctx.fillRect(x + w / 2 - 1.5 * S, y + 23 * S, 3 * S, 4 * S);
   ctx.fillRect(x + w - 5 * S, y + 23 * S, 3 * S, 4 * S);
-
-  // --- LEFT TILE: monitor on a raised riser platform ---
-  // riser block under monitor
   ctx.fillStyle = "#9a7d6a";
   ctx.fillRect(x + 2 * S, y + 11 * S, TILE_SIZE - 4 * S, 6 * S);
   ctx.fillStyle = "#b89c89";
   ctx.fillRect(x + 2 * S, y + 11 * S, TILE_SIZE - 4 * S, 1.5 * S);
-  // USB hub on riser
   ctx.fillStyle = "#7d8a5e";
   ctx.fillRect(x + 3 * S, y + 13 * S, 8 * S, 3 * S);
   for (let i = 0; i < 3; i++) {
     ctx.fillStyle = "#46583a";
     ctx.fillRect(x + (4 + i * 2.5) * S, y + 13.5 * S, 1.5 * S, 1.5 * S);
   }
-  // monitor body — bigger, on riser
   ctx.fillStyle = "#5a6e48";
   ctx.fillRect(x + 3 * S, y - 3 * S, TILE_SIZE - 6 * S, 14 * S);
   ctx.fillStyle = "#46583a";
   ctx.fillRect(x + 3 * S, y - 3 * S, TILE_SIZE - 6 * S, 2 * S);
-  // screen bezel
   ctx.fillStyle = "#2a2620";
   ctx.fillRect(x + 5 * S, y - 0.5 * S, TILE_SIZE - 10 * S, 9 * S);
-  // screen — olive glow
   ctx.fillStyle = "#aeb888";
   ctx.fillRect(x + 6 * S, y + 0.5 * S, TILE_SIZE - 12 * S, 7 * S);
-  // screen glow corner highlight
   ctx.fillStyle = "rgba(255,255,255,0.2)";
   ctx.beginPath();
   ctx.moveTo(x + 7 * S, y + 1.5 * S);
@@ -1322,7 +1157,6 @@ function drawDesk(x, y, position) {
   ctx.lineTo(x + 7 * S, y + 5.5 * S);
   ctx.closePath();
   ctx.fill();
-  // content lines on screen
   ctx.strokeStyle = "rgba(70, 88, 58, 0.45)";
   ctx.lineWidth = S * 0.8;
   for (let i = 0; i < 3; i++) {
@@ -1331,19 +1165,13 @@ function drawDesk(x, y, position) {
     ctx.lineTo(x + TILE_SIZE - 7 * S, y + (2.5 + i * 2) * S);
     ctx.stroke();
   }
-  // power LED
   ctx.fillStyle = "#aeb888";
   ctx.beginPath();
   ctx.arc(x + TILE_SIZE - 5 * S, y + 10 * S, 0.8 * S, 0, Math.PI * 2);
   ctx.fill();
-  // monitor stand connecting to riser
   ctx.fillStyle = "#46583a";
   ctx.fillRect(x + TILE_SIZE / 2 - 2 * S, y + 11 * S, 4 * S, 1.5 * S);
-
-  // --- CENTER TILE: keyboard + open circuit notebook + soldering iron ---
   const cx = x + TILE_SIZE;
-
-  // keyboard
   ctx.fillStyle = "#7d8a5e";
   ctx.fillRect(cx + 1 * S, y + 18.5 * S, 17 * S, 4 * S);
   ctx.fillStyle = "#9ca878";
@@ -1357,17 +1185,13 @@ function drawDesk(x, y, position) {
       );
     }
   }
-  // space bar
   ctx.fillStyle = "#9ca878";
   ctx.fillRect(cx + 4 * S, y + 22.5 * S, 9 * S, 1.4 * S);
-
-  // open notebook/sketchbook — circuit sketch inside
   ctx.fillStyle = "#dbe0b0";
   ctx.fillRect(cx + 2 * S, y + 11 * S, 13 * S, 7 * S);
   ctx.fillStyle = "#cdb6a4";
   ctx.fillRect(cx + 2 * S, y + 11 * S, 13 * S, 1 * S);
-  ctx.fillRect(cx + 8 * S, y + 11 * S, 1 * S, 7 * S); // spine
-  // sketch lines on left page
+  ctx.fillRect(cx + 8 * S, y + 11 * S, 1 * S, 7 * S);
   ctx.strokeStyle = "rgba(110, 125, 75, 0.5)";
   ctx.lineWidth = S * 0.7;
   for (let i = 0; i < 3; i++) {
@@ -1376,7 +1200,6 @@ function drawDesk(x, y, position) {
     ctx.lineTo(cx + 7 * S, y + (13 + i * 1.8) * S);
     ctx.stroke();
   }
-  // circuit sketch on right page
   ctx.strokeStyle = "rgba(110, 125, 75, 0.7)";
   ctx.lineWidth = S * 0.8;
   ctx.beginPath();
@@ -1385,33 +1208,25 @@ function drawDesk(x, y, position) {
   ctx.lineTo(cx + 12 * S, y + 15 * S);
   ctx.lineTo(cx + 10 * S, y + 15 * S);
   ctx.stroke();
-
-  // soldering iron resting on a stand
   ctx.fillStyle = "#9a7d6a";
-  ctx.fillRect(cx + 16 * S, y + 15 * S, 3 * S, 7 * S); // stand base
+  ctx.fillRect(cx + 16 * S, y + 15 * S, 3 * S, 7 * S);
   ctx.fillStyle = "#dbe0b0";
-  ctx.fillRect(cx + 16.5 * S, y + 7 * S, 2 * S, 9 * S); // iron body
+  ctx.fillRect(cx + 16.5 * S, y + 7 * S, 2 * S, 9 * S);
   ctx.fillStyle = "#5a6e48";
-  ctx.fillRect(cx + 16.5 * S, y + 7 * S, 2 * S, 3 * S); // grip
+  ctx.fillRect(cx + 16.5 * S, y + 7 * S, 2 * S, 3 * S);
   ctx.fillStyle = "#b89c89";
-  ctx.fillRect(cx + 17 * S, y + 4.5 * S, 1 * S, 3 * S); // tip
-  // heat wisp from tip
+  ctx.fillRect(cx + 17 * S, y + 4.5 * S, 1 * S, 3 * S);
   ctx.strokeStyle = "rgba(220, 180, 130, 0.55)";
   ctx.lineWidth = S;
   ctx.beginPath();
   ctx.moveTo(cx + 17.5 * S, y + 3.5 * S);
   ctx.quadraticCurveTo(cx + 19.5 * S, y + 0.5 * S, cx + 17.5 * S, y - 2.5 * S);
   ctx.stroke();
-
-  // --- RIGHT TILE: breadboard + multimeter + beet juice bottle ---
   const rx = x + TILE_SIZE * 2;
-
-  // breadboard
   ctx.fillStyle = "#dbe0b0";
   ctx.fillRect(rx + 1 * S, y + 12 * S, 14 * S, 9 * S);
   ctx.fillStyle = "#c9c98a";
   ctx.fillRect(rx + 1 * S, y + 12 * S, 14 * S, 1 * S);
-  // breadboard hole grid
   ctx.fillStyle = "#9ca878";
   for (let r = 0; r < 4; r++) {
     for (let c = 0; c < 8; c++) {
@@ -1423,7 +1238,6 @@ function drawDesk(x, y, position) {
       );
     }
   }
-  // component legs on breadboard
   ctx.strokeStyle = "#5a6e48";
   ctx.lineWidth = S * 0.8;
   ctx.beginPath();
@@ -1432,18 +1246,14 @@ function drawDesk(x, y, position) {
   ctx.lineTo(rx + 7 * S, y + 10 * S);
   ctx.lineTo(rx + 7 * S, y + 12 * S);
   ctx.stroke();
-  // resistor body on the component
   ctx.fillStyle = "#c98fa0";
   ctx.fillRect(rx + 4.5 * S, y + 9 * S, 2.5 * S, 1.5 * S);
-
-  // multimeter
   ctx.fillStyle = "#46583a";
   ctx.fillRect(rx + 16 * S, y + 11 * S, 9 * S, 11 * S);
   ctx.fillStyle = "#aeb888";
-  ctx.fillRect(rx + 17 * S, y + 12 * S, 7 * S, 5 * S); // display
+  ctx.fillRect(rx + 17 * S, y + 12 * S, 7 * S, 5 * S);
   ctx.fillStyle = "#9ca878";
-  ctx.fillRect(rx + 19 * S, y + 18 * S, 3 * S, 3 * S); // dial knob
-  // probe wires
+  ctx.fillRect(rx + 19 * S, y + 18 * S, 3 * S, 3 * S);
   ctx.strokeStyle = "#c98fa0";
   ctx.lineWidth = S;
   ctx.beginPath();
@@ -1455,17 +1265,14 @@ function drawDesk(x, y, position) {
   ctx.moveTo(rx + 21 * S, y + 22 * S);
   ctx.quadraticCurveTo(rx + 23 * S, y + 26 * S, rx + 25 * S, y + 24 * S);
   ctx.stroke();
-
-  // beet juice bottle — tall, deep red, clearly visible
   ctx.fillStyle = "#c44569";
   ctx.fillRect(rx + 2 * S, y + 3 * S, 6 * S, 11 * S);
   ctx.fillStyle = "#e0719a";
-  ctx.fillRect(rx + 2 * S, y + 3 * S, 6 * S, 2 * S); // label top
+  ctx.fillRect(rx + 2 * S, y + 3 * S, 6 * S, 2 * S);
   ctx.fillStyle = "#dbe0b0";
-  ctx.fillRect(rx + 3 * S, y + 1 * S, 4 * S, 2.5 * S); // cap
+  ctx.fillRect(rx + 3 * S, y + 1 * S, 4 * S, 2.5 * S);
   ctx.fillStyle = "rgba(255,255,255,0.28)";
-  ctx.fillRect(rx + 3 * S, y + 5.5 * S, 4 * S, 5 * S); // label window
-  // liquid level line
+  ctx.fillRect(rx + 3 * S, y + 5.5 * S, 4 * S, 5 * S);
   ctx.strokeStyle = "#a02850";
   ctx.lineWidth = S * 0.9;
   ctx.beginPath();
@@ -1477,11 +1284,8 @@ function drawDesk(x, y, position) {
 function drawCouch(x, y, position) {
   const S = TILE_SIZE / 20;
   if (position !== "left") return;
-
   const w = TILE_SIZE * 2;
-  const lift = 20 * S; // taller backrest
-
-  // floor shadow
+  const lift = 20 * S;
   ctx.fillStyle = "rgba(20, 21, 15, 0.14)";
   ctx.beginPath();
   ctx.ellipse(
@@ -1494,70 +1298,48 @@ function drawCouch(x, y, position) {
     Math.PI * 2,
   );
   ctx.fill();
-
-  // armrests — draw first (behind backrest)
   ctx.fillStyle = "#6a7650";
   ctx.fillRect(x, y - lift * 0.5, 5 * S, lift * 0.5 + 10 * S);
   ctx.fillRect(x + w - 5 * S, y - lift * 0.5, 5 * S, lift * 0.5 + 10 * S);
-  // armrest tops
   ctx.fillStyle = "#7d8a5e";
   ctx.fillRect(x, y - lift * 0.5, 5 * S, 2 * S);
   ctx.fillRect(x + w - 5 * S, y - lift * 0.5, 5 * S, 2 * S);
-  // armrest front faces
   ctx.fillStyle = "#58663e";
   ctx.fillRect(x, y + 8 * S, 5 * S, 2 * S);
   ctx.fillRect(x + w - 5 * S, y + 8 * S, 5 * S, 2 * S);
-
-  // backrest body
   ctx.fillStyle = "#7d8a5e";
   ctx.fillRect(x + 5 * S, y - lift, w - 10 * S, lift);
-  // backrest top edge
   ctx.fillStyle = "#6a7650";
   ctx.fillRect(x + 5 * S, y - lift, w - 10 * S, 2.5 * S);
-  // backrest front face (depth)
   ctx.fillStyle = "#58663e";
   ctx.fillRect(x + 5 * S, y - 1 * S, w - 10 * S, 2.5 * S);
-
-  // backrest cushions — three visible panels
   const cpw = (w - 10 * S - 4 * S) / 3;
   for (let i = 0; i < 3; i++) {
     const cpx = x + 5 * S + 2 * S + i * (cpw + 1 * S);
     ctx.fillStyle = "#8c9968";
     ctx.fillRect(cpx, y - lift + 3 * S, cpw, lift - 6 * S);
-    // cushion highlight
     ctx.fillStyle = "rgba(255,255,255,0.1)";
     ctx.fillRect(cpx, y - lift + 3 * S, cpw, 2 * S);
-    // cushion bottom shadow
     ctx.fillStyle = "rgba(0,0,0,0.1)";
     ctx.fillRect(cpx, y - 3 * S, cpw, 2 * S);
   }
-
-  // seat — full width slab
   ctx.fillStyle = "#aeb888";
   ctx.fillRect(x + 5 * S, y - 7 * S, w - 10 * S, 9 * S);
-  // seat top surface edge
   ctx.fillStyle = "#9ca878";
   ctx.fillRect(x + 5 * S, y - 7 * S, w - 10 * S, 1.5 * S);
-  // seat front depth face
   ctx.fillStyle = "#7d8a5e";
   ctx.fillRect(x + 5 * S, y + 1 * S, w - 10 * S, 2.5 * S);
-  // seat cushion highlight
   ctx.fillStyle = "rgba(255,255,255,0.1)";
   ctx.fillRect(x + 7 * S, y - 6 * S, w - 14 * S, 2 * S);
-
-  // throw pillow — plump, on left cushion area
   ctx.fillStyle = "#d9a9b5";
   ctx.fillRect(x + 7 * S, y - 12 * S, 9 * S, 7 * S);
   ctx.fillStyle = "#e8c4d0";
   ctx.fillRect(x + 7 * S, y - 12 * S, 9 * S, 1.5 * S);
   ctx.fillStyle = "#c98fa0";
   ctx.fillRect(x + 7 * S, y - 12 * S, 1.5 * S, 7 * S);
-  // pillow stitch
   ctx.strokeStyle = "rgba(217, 169, 181, 0.5)";
   ctx.lineWidth = S * 0.8;
   ctx.strokeRect(x + 8.5 * S, y - 10.5 * S, 6 * S, 4 * S);
-
-  // legs
   ctx.fillStyle = "#3a4a30";
   ctx.fillRect(x + 5 * S, y + 3 * S, 3 * S, 5 * S);
   ctx.fillRect(x + w - 8 * S, y + 3 * S, 3 * S, 5 * S);
@@ -1569,10 +1351,7 @@ function drawCouch(x, y, position) {
 function drawCoffeeTable(x, y, position) {
   const S = TILE_SIZE / 20;
   if (position !== "left") return;
-
   const w = TILE_SIZE * 2;
-
-  // shadow
   ctx.fillStyle = "rgba(20, 21, 15, 0.12)";
   ctx.beginPath();
   ctx.ellipse(
@@ -1585,24 +1364,18 @@ function drawCoffeeTable(x, y, position) {
     Math.PI * 2,
   );
   ctx.fill();
-
-  // legs — tapered, four of them
   ctx.fillStyle = "#7d6452";
   ctx.fillRect(x + 4 * S, y + 7 * S, 2.5 * S, 9 * S);
   ctx.fillRect(x + w - 6.5 * S, y + 7 * S, 2.5 * S, 9 * S);
-  // back legs slightly visible
   ctx.fillStyle = "#6a5440";
   ctx.fillRect(x + 6 * S, y + 7 * S, 1.5 * S, 4 * S);
   ctx.fillRect(x + w - 7.5 * S, y + 7 * S, 1.5 * S, 4 * S);
-
-  // tabletop — with front depth face
   ctx.fillStyle = "#9a7d6a";
-  ctx.fillRect(x + 1 * S, y + 5 * S, w - 2 * S, 3 * S); // front face
+  ctx.fillRect(x + 1 * S, y + 5 * S, w - 2 * S, 3 * S);
   ctx.fillStyle = "#cdb6a4";
-  ctx.fillRect(x + 1 * S, y - 1 * S, w - 2 * S, 7 * S); // top surface
+  ctx.fillRect(x + 1 * S, y - 1 * S, w - 2 * S, 7 * S);
   ctx.fillStyle = "#b89c89";
-  ctx.fillRect(x + 1 * S, y - 1 * S, w - 2 * S, 1.8 * S); // top highlight
-  // wood grain lines
+  ctx.fillRect(x + 1 * S, y - 1 * S, w - 2 * S, 1.8 * S);
   ctx.strokeStyle = "rgba(154, 125, 106, 0.28)";
   ctx.lineWidth = S * 0.6;
   for (let i = 0; i < 3; i++) {
@@ -1611,8 +1384,6 @@ function drawCoffeeTable(x, y, position) {
     ctx.lineTo(x + w - 4 * S, y + (1.5 + i * 1.8) * S);
     ctx.stroke();
   }
-
-  // stacked books — left side, three books with visible spines
   const bookColors = ["#c98fa0", "#9ca878", "#a98fb8"];
   const bookH = 2.5 * S;
   let bookY = y - 1 * S;
@@ -1621,38 +1392,27 @@ function drawCoffeeTable(x, y, position) {
     const bw = (12 - i * 1.5) * S;
     ctx.fillStyle = bookColors[i];
     ctx.fillRect(x + 3 * S, bookY, bw, bookH);
-    // spine highlight
     ctx.fillStyle = "rgba(255,255,255,0.2)";
     ctx.fillRect(x + 3 * S, bookY, bw, 0.7 * S);
-    // spine side
     ctx.fillStyle = "rgba(0,0,0,0.15)";
     ctx.fillRect(x + 3 * S, bookY, 1.5 * S, bookH);
   }
-  // bookmark sticking up
   ctx.fillStyle = "#e0719a";
   ctx.fillRect(x + 8 * S, bookY - 2.5 * S, 1.5 * S, 3.5 * S);
-
-  // incense tray + stick — right side, more detailed
   const ix = x + w - 15 * S;
   const iy = y - 0.5 * S;
-  // tray
   ctx.fillStyle = "#7d6452";
   ctx.fillRect(ix, iy, 12 * S, 1.5 * S);
   ctx.fillStyle = "#9a7d6a";
   ctx.fillRect(ix + 0.5 * S, iy - 0.8 * S, 11 * S, 1 * S);
-  // incense stick — thin, resting in tray
   ctx.fillStyle = "#c4b896";
   ctx.fillRect(ix + 1 * S, iy - 8 * S, 1 * S, 8 * S);
-  // ash cone at tip
   ctx.fillStyle = "#a8a090";
   ctx.fillRect(ix + 0.5 * S, iy - 9 * S, 2 * S, 1.5 * S);
-  // glowing ember
   ctx.fillStyle = "#c44569";
   ctx.beginPath();
   ctx.arc(ix + 1 * S, iy - 9.5 * S, 1.2 * S, 0, Math.PI * 2);
   ctx.fill();
-
-  // animated smoke — three wisps, always drifting
   const mt = performance.now() / 1000;
   const d1 = Math.sin(mt * 0.55) * 2 * S;
   const d2 = Math.sin(mt * 0.4 + 1.2) * 1.8 * S;
@@ -1680,7 +1440,6 @@ function drawCoffeeTable(x, y, position) {
 
 function drawKitchenDoor(x, y) {
   const S = TILE_SIZE / 20;
-
   ctx.fillStyle = "#6e5644";
   ctx.fillRect(x + 1 * S, y, TILE_SIZE - 2 * S, TILE_SIZE);
   ctx.fillStyle = "#8a7a5a";
@@ -1695,7 +1454,6 @@ function drawKitchenDoor(x, y) {
   );
   ctx.fillStyle = "rgba(255,255,255,0.15)";
   ctx.fillRect(x + 4 * S, y + 3 * S, TILE_SIZE - 8 * S, 2 * S);
-  // small steaming cup icon, hinting at "kitchen"
   ctx.fillStyle = "#dbe0b0";
   ctx.fillRect(x + TILE_SIZE / 2 - 3 * S, y + 9 * S, 6 * S, 4 * S);
   ctx.strokeStyle = "#aeb888";
@@ -1709,7 +1467,6 @@ function drawKitchenDoor(x, y) {
     y + 3 * S,
   );
   ctx.stroke();
-  // doorknob
   ctx.fillStyle = "#f3eef7";
   ctx.beginPath();
   ctx.arc(x + TILE_SIZE - 6 * S, y + TILE_SIZE / 2, 1.6 * S, 0, Math.PI * 2);
@@ -1718,22 +1475,16 @@ function drawKitchenDoor(x, y) {
 
 function drawStove(x, y) {
   const S = TILE_SIZE / 20;
-  const lift = 18 * S;
-
-  // stove body
   ctx.fillStyle = "#7d6452";
   ctx.fillRect(x + 1 * S, y, TILE_SIZE - 2 * S, TILE_SIZE);
   ctx.fillStyle = "#9a7d6a";
   ctx.fillRect(x + 1 * S, y, TILE_SIZE - 2 * S, 2 * S);
-  // oven door
   ctx.fillStyle = "#5a4a3a";
   ctx.fillRect(x + 3 * S, y + 10 * S, TILE_SIZE - 6 * S, 9 * S);
   ctx.fillStyle = "#46382c";
   ctx.fillRect(x + 5 * S, y + 12 * S, TILE_SIZE - 10 * S, 5 * S);
   ctx.fillStyle = "#c4b896";
-  ctx.fillRect(x + 16 * S, y + 13.5 * S, 2 * S, 2 * S); // handle
-
-  // stovetop burners
+  ctx.fillRect(x + 16 * S, y + 13.5 * S, 2 * S, 2 * S);
   ctx.fillStyle = "#3a3028";
   ctx.beginPath();
   ctx.arc(x + 7 * S, y + 5 * S, 3 * S, 0, Math.PI * 2);
@@ -1741,10 +1492,8 @@ function drawStove(x, y) {
   ctx.beginPath();
   ctx.arc(x + 14 * S, y + 5 * S, 3 * S, 0, Math.PI * 2);
   ctx.fill();
-
-  // kettle on the back burner
-  const kx = x + 14 * S;
-  const ky = y + 5 * S;
+  const kx = x + 14 * S,
+    ky = y + 5 * S;
   ctx.fillStyle = "#cbb8d8";
   ctx.beginPath();
   ctx.ellipse(kx, ky - 6 * S, 6 * S, 5 * S, 0, 0, Math.PI * 2);
@@ -1760,16 +1509,13 @@ function drawStove(x, y) {
   ctx.ellipse(kx, ky - 11 * S, 3 * S, 1.2 * S, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillRect(kx - 1 * S, ky - 13.5 * S, 2 * S, 2.5 * S);
-  // spout
   ctx.fillStyle = "#a98fb8";
   ctx.fillRect(kx - 9 * S, ky - 9 * S, 4 * S, 2 * S);
-  // handle
   ctx.strokeStyle = "#a98fb8";
   ctx.lineWidth = 1.5 * S;
   ctx.beginPath();
   ctx.arc(kx, ky - 10 * S, 4.5 * S, 0.1 * Math.PI, 0.9 * Math.PI, true);
   ctx.stroke();
-  // steam
   const mt = performance.now() / 1000;
   const d1 = Math.sin(mt * 0.7) * 1.5 * S;
   ctx.strokeStyle = "rgba(203, 184, 216, 0.6)";
@@ -1778,8 +1524,6 @@ function drawStove(x, y) {
   ctx.moveTo(kx, ky - 16 * S);
   ctx.quadraticCurveTo(kx + d1, ky - 22 * S, kx, ky - 27 * S);
   ctx.stroke();
-
-  // a mug waiting beside the stove
   ctx.fillStyle = "#f3e6f0";
   ctx.fillRect(x + 1 * S, y - 5 * S, 5 * S, 5 * S);
   ctx.fillStyle = "#cbb8d8";
@@ -1788,30 +1532,22 @@ function drawStove(x, y) {
 
 function drawCounter(x, y, position) {
   const S = TILE_SIZE / 20;
-  if (position !== "left") return; // draw whole counter from left tile
-
+  if (position !== "left") return;
   const w = TILE_SIZE * 2;
-
-  // counter front face
   ctx.fillStyle = "#9a7d6a";
   ctx.fillRect(x + 1 * S, y + 5 * S, w - 2 * S, TILE_SIZE - 5 * S);
   ctx.fillStyle = "#7d6452";
   ctx.fillRect(x + 1 * S, y + 5 * S, w - 2 * S, 2 * S);
-  // cabinet door lines
   ctx.strokeStyle = "rgba(125, 100, 82, 0.5)";
   ctx.lineWidth = S * 0.8;
   ctx.beginPath();
   ctx.moveTo(x + w / 2, y + 8 * S);
   ctx.lineTo(x + w / 2, y + TILE_SIZE);
   ctx.stroke();
-
-  // countertop
   ctx.fillStyle = "#cdb6a4";
   ctx.fillRect(x + 1 * S, y + 1 * S, w - 2 * S, 5 * S);
   ctx.fillStyle = "#b89c89";
   ctx.fillRect(x + 1 * S, y + 1 * S, w - 2 * S, 1.5 * S);
-
-  // snack bowl — left side
   ctx.fillStyle = "#dbe0b0";
   ctx.beginPath();
   ctx.ellipse(x + 12 * S, y - 9 * S, 9 * S, 5.5 * S, 0, 0, Math.PI * 2);
@@ -1821,13 +1557,12 @@ function drawCounter(x, y, position) {
   ctx.ellipse(x + 12 * S, y - 9 * S, 9 * S, 3.5 * S, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "#f5e86a";
-  const chips = [
+  for (const [cx2, cy2, rx, ry, ang] of [
     [-4, 0, 2.2, 1.1, 0.2],
     [-1, -1.5, 1.8, 0.9, 0],
     [3, -0.5, 2.2, 1.1, -0.2],
     [0, 1.2, 1.8, 0.8, 0.1],
-  ];
-  for (const [cx2, cy2, rx, ry, ang] of chips) {
+  ]) {
     ctx.beginPath();
     ctx.ellipse(
       x + 12 * S + cx2 * S,
@@ -1845,8 +1580,6 @@ function drawCounter(x, y, position) {
   ctx.beginPath();
   ctx.ellipse(x + 12 * S, y - 9 * S, 9 * S, 3.5 * S, 0, 0, Math.PI * 2);
   ctx.stroke();
-
-  // chocolate bar — right side
   ctx.fillStyle = "#5a3a1a";
   ctx.fillRect(x + 26 * S, y - 13 * S, 8 * S, 9 * S);
   ctx.fillStyle = "#7a5228";
@@ -1861,8 +1594,6 @@ function drawCounter(x, y, position) {
     ctx.lineTo(x + (26 + i * 2.7) * S, y - 4 * S);
     ctx.stroke();
   }
-
-  // can
   ctx.fillStyle = "#9ca878";
   ctx.fillRect(x + 36 * S, y - 14 * S, 5 * S, 13 * S);
   ctx.fillStyle = "#7d8a5e";
@@ -1875,8 +1606,6 @@ function drawCounter(x, y, position) {
 function drawFridge(x, y) {
   const S = TILE_SIZE / 20;
   const lift = 38 * S;
-
-  // shadow
   ctx.fillStyle = "rgba(20,21,15,0.12)";
   ctx.beginPath();
   ctx.ellipse(
@@ -1889,20 +1618,16 @@ function drawFridge(x, y) {
     Math.PI * 2,
   );
   ctx.fill();
-
-  // body
   ctx.fillStyle = "#dbe0b0";
   ctx.fillRect(x + 2 * S, y + TILE_SIZE - lift, TILE_SIZE - 4 * S, lift);
   ctx.fillStyle = "#c9c98a";
   ctx.fillRect(x + 2 * S, y + TILE_SIZE - lift, TILE_SIZE - 4 * S, 2 * S);
-  // freezer door seam
   ctx.strokeStyle = "rgba(154, 154, 100, 0.5)";
   ctx.lineWidth = S;
   ctx.beginPath();
   ctx.moveTo(x + 2 * S, y + TILE_SIZE - lift * 0.62);
   ctx.lineTo(x + TILE_SIZE - 2 * S, y + TILE_SIZE - lift * 0.62);
   ctx.stroke();
-  // handles
   ctx.fillStyle = "#9a9a6a";
   ctx.fillRect(
     x + TILE_SIZE - 6 * S,
@@ -1916,7 +1641,6 @@ function drawFridge(x, y) {
     1.5 * S,
     8 * S,
   );
-  // soft highlight
   ctx.fillStyle = "rgba(255,255,255,0.15)";
   ctx.fillRect(x + 4 * S, y + TILE_SIZE - lift + 3 * S, 2.5 * S, lift - 6 * S);
 }
@@ -1924,32 +1648,20 @@ function drawFridge(x, y) {
 function drawToilet(x, y) {
   const S = TILE_SIZE / 20;
   const lift = 16 * S;
-
-  // tank (back, taller, against wall)
   ctx.fillStyle = "#e8e8e0";
   ctx.fillRect(x + 4 * S, y - lift, TILE_SIZE - 8 * S, lift - 4 * S);
   ctx.fillStyle = "#d4d4c8";
   ctx.fillRect(x + 4 * S, y - lift, TILE_SIZE - 8 * S, 1.5 * S);
-  // tank lid
   ctx.fillStyle = "#f0f0e8";
   ctx.fillRect(x + 3 * S, y - lift - 1 * S, TILE_SIZE - 6 * S, 2 * S);
-
-  // bowl base / seat
   ctx.fillStyle = "#e8e8e0";
   ctx.beginPath();
   ctx.ellipse(x + TILE_SIZE / 2, y + 1 * S, 8 * S, 5 * S, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#d4d4c8";
-  ctx.beginPath();
-  ctx.ellipse(x + TILE_SIZE / 2, y + 1 * S, 8 * S, 5 * S, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // inner bowl water
   ctx.fillStyle = "#b8d4c8";
   ctx.beginPath();
   ctx.ellipse(x + TILE_SIZE / 2, y + 2 * S, 5 * S, 3 * S, 0, 0, Math.PI * 2);
   ctx.fill();
-
-  // seat rim — open oval
   ctx.strokeStyle = "#c8c8b8";
   ctx.lineWidth = 1.5 * S;
   ctx.beginPath();
@@ -1963,8 +1675,6 @@ function drawToilet(x, y) {
     Math.PI * 2,
   );
   ctx.stroke();
-
-  // shadow under the bowl
   ctx.fillStyle = "rgba(20,21,15,0.1)";
   ctx.beginPath();
   ctx.ellipse(x + TILE_SIZE / 2, y + 6 * S, 7 * S, 2 * S, 0, 0, Math.PI * 2);
@@ -1973,7 +1683,6 @@ function drawToilet(x, y) {
 
 function drawBathroomDoor(x, y) {
   const S = TILE_SIZE / 20;
-
   ctx.fillStyle = "#5a6e48";
   ctx.fillRect(x + 1 * S, y, TILE_SIZE - 2 * S, TILE_SIZE);
   ctx.fillStyle = "#7d8a5e";
@@ -1988,7 +1697,6 @@ function drawBathroomDoor(x, y) {
   );
   ctx.fillStyle = "rgba(255,255,255,0.15)";
   ctx.fillRect(x + 4 * S, y + 3 * S, TILE_SIZE - 8 * S, 2 * S);
-  // a small wet-floor icon style droplet, hinting at "bathroom"
   ctx.fillStyle = "#aeb888";
   ctx.beginPath();
   ctx.moveTo(x + TILE_SIZE / 2, y + 8 * S);
@@ -2005,7 +1713,6 @@ function drawBathroomDoor(x, y) {
     y + 8 * S,
   );
   ctx.fill();
-  // doorknob
   ctx.fillStyle = "#f3eef7";
   ctx.beginPath();
   ctx.arc(x + TILE_SIZE - 6 * S, y + TILE_SIZE / 2, 1.6 * S, 0, Math.PI * 2);
@@ -2015,8 +1722,6 @@ function drawBathroomDoor(x, y) {
 function drawBedsideOil(x, y) {
   const S = TILE_SIZE / 20;
   const lift = 10 * S;
-
-  // small shadow
   ctx.fillStyle = "rgba(20,21,15,0.12)";
   ctx.beginPath();
   ctx.ellipse(
@@ -2029,8 +1734,6 @@ function drawBedsideOil(x, y) {
     Math.PI * 2,
   );
   ctx.fill();
-
-  // small glass bottle
   ctx.fillStyle = "#7fc0a6";
   ctx.fillRect(
     x + TILE_SIZE / 2 - 3 * S,
@@ -2040,7 +1743,6 @@ function drawBedsideOil(x, y) {
   );
   ctx.fillStyle = "#6aab92";
   ctx.fillRect(x + TILE_SIZE / 2 - 3 * S, y + TILE_SIZE - lift, 6 * S, 2 * S);
-  // dropper cap
   ctx.fillStyle = "#46583a";
   ctx.fillRect(
     x + TILE_SIZE / 2 - 1 * S,
@@ -2048,7 +1750,6 @@ function drawBedsideOil(x, y) {
     2 * S,
     4 * S,
   );
-  // glass shine
   ctx.fillStyle = "rgba(255,255,255,0.3)";
   ctx.fillRect(
     x + TILE_SIZE / 2 - 2 * S,
@@ -2061,31 +1762,20 @@ function drawBedsideOil(x, y) {
 function drawTub(x, y, isLeftHalf, isTopHalf) {
   const S = TILE_SIZE / 20;
   if (!isLeftHalf || !isTopHalf) return;
-
-  const w = TILE_SIZE * 2;
-  const h = TILE_SIZE * 2;
-
-  // outer tub shell — raised above floor
+  const w = TILE_SIZE * 2,
+    h = TILE_SIZE * 2;
   ctx.fillStyle = "#c5dcd2";
   ctx.fillRect(x + 1 * S, y + 2 * S, w - 2 * S, h - 2 * S);
-  // front face depth
   ctx.fillStyle = "#9ab8ae";
   ctx.fillRect(x + 1 * S, y + h - 4 * S, w - 2 * S, 4 * S);
-  // rim top surface
   ctx.fillStyle = "#dceae3";
   ctx.fillRect(x + 1 * S, y + 2 * S, w - 2 * S, 4 * S);
-  // rim highlight
   ctx.fillStyle = "rgba(255,255,255,0.5)";
   ctx.fillRect(x + 2 * S, y + 2 * S, w - 4 * S, 1.5 * S);
-
-  // interior basin — recessed
   ctx.fillStyle = "#b8d4c8";
   ctx.fillRect(x + 5 * S, y + 7 * S, w - 10 * S, h - 14 * S);
-  // basin inner highlight top
   ctx.fillStyle = "rgba(255,255,255,0.2)";
   ctx.fillRect(x + 5 * S, y + 7 * S, w - 10 * S, 2.5 * S);
-
-  // water surface with two ripple lines
   const wt = performance.now() / 1000;
   const ripple = Math.sin(wt * 1.2) * 0.5 * S;
   ctx.strokeStyle = "rgba(255,255,255,0.35)";
@@ -2102,8 +1792,6 @@ function drawTub(x, y, isLeftHalf, isTopHalf) {
     );
     ctx.stroke();
   }
-
-  // drain circle
   ctx.fillStyle = "#7d9488";
   ctx.beginPath();
   ctx.arc(x + w / 2, y + h - 7 * S, 2 * S, 0, Math.PI * 2);
@@ -2112,14 +1800,10 @@ function drawTub(x, y, isLeftHalf, isTopHalf) {
   ctx.beginPath();
   ctx.arc(x + w / 2, y + h - 7 * S, 1 * S, 0, Math.PI * 2);
   ctx.fill();
-
-  // shower pipe — rises up the back wall
   ctx.fillStyle = "#a8c0b8";
   ctx.fillRect(x + w / 2 - 1.5 * S, y - 12 * S, 3 * S, 14 * S);
-  // elbow joint
   ctx.fillStyle = "#9ab8ae";
   ctx.fillRect(x + w / 2 - 2 * S, y - 13 * S, 8 * S, 3 * S);
-  // shower head
   ctx.fillStyle = "#7d9488";
   ctx.beginPath();
   ctx.ellipse(
@@ -2132,7 +1816,6 @@ function drawTub(x, y, isLeftHalf, isTopHalf) {
     Math.PI * 2,
   );
   ctx.fill();
-  // water spray dots
   ctx.fillStyle = "rgba(184, 212, 200, 0.7)";
   for (let i = 0; i < 4; i++) {
     const sx = x + w / 2 + 2 * S + i * 1.5 * S;
@@ -2141,16 +1824,13 @@ function drawTub(x, y, isLeftHalf, isTopHalf) {
     ctx.arc(sx, sy, 0.8 * S, 0, Math.PI * 2);
     ctx.fill();
   }
-
-  // clawfoot legs — four rounded feet
   ctx.fillStyle = "#9ab8ae";
-  const legPositions = [
+  for (const [lx, ly] of [
     [x + 3 * S, y + h - 3 * S],
     [x + w - 5 * S, y + h - 3 * S],
     [x + 4 * S, y + h - 2 * S],
     [x + w - 6 * S, y + h - 2 * S],
-  ];
-  for (const [lx, ly] of legPositions) {
+  ]) {
     ctx.fillRect(lx, ly, 3 * S, 3 * S);
   }
 }
@@ -2158,46 +1838,33 @@ function drawTub(x, y, isLeftHalf, isTopHalf) {
 function drawSink(x, y) {
   const S = TILE_SIZE / 20;
   const lift = 16 * S;
-
-  // small wall mirror above sink
   ctx.fillStyle = "#a8a8c0";
   ctx.fillRect(x + 6 * S, y - lift, TILE_SIZE - 12 * S, 7 * S);
   ctx.fillStyle = "#e8e8f3";
   ctx.fillRect(x + 7 * S, y - lift + 1 * S, TILE_SIZE - 14 * S, 5 * S);
   ctx.fillStyle = "rgba(255,255,255,0.4)";
   ctx.fillRect(x + 7.5 * S, y - lift + 1.5 * S, 1.5 * S, 4 * S);
-
-  // sink basin pedestal
   ctx.fillStyle = "#e8e8e0";
   ctx.fillRect(x + 7 * S, y - 6 * S, TILE_SIZE - 14 * S, 8 * S);
   ctx.fillStyle = "#d4d4c8";
   ctx.fillRect(x + 7 * S, y - 6 * S, TILE_SIZE - 14 * S, 1.5 * S);
-  // basin bowl
   ctx.fillStyle = "#c8c8ba";
   ctx.beginPath();
   ctx.ellipse(x + TILE_SIZE / 2, y - 2 * S, 6 * S, 2.5 * S, 0, 0, Math.PI * 2);
   ctx.fill();
-  // faucet
   ctx.fillStyle = "#a8a89c";
   ctx.fillRect(x + TILE_SIZE / 2 - 1 * S, y - 9 * S, 2 * S, 4 * S);
-  // pedestal stand
   ctx.fillStyle = "#d4d4c8";
   ctx.fillRect(x + TILE_SIZE / 2 - 2.5 * S, y + 2 * S, 5 * S, 6 * S);
 }
 
 function drawCabinet(x, y) {
   const S = TILE_SIZE / 20;
-  const lift = 24 * S; // taller cabinet
-
-  // outer casing — wall-mounted medicine cabinet
+  const lift = 24 * S;
   ctx.fillStyle = "#8a7060";
   ctx.fillRect(x + 1 * S, y - lift, TILE_SIZE - 2 * S, lift + 2 * S);
-
-  // door surface
   ctx.fillStyle = "#b89c89";
   ctx.fillRect(x + 2 * S, y - lift + 1 * S, TILE_SIZE - 4 * S, lift - 1 * S);
-
-  // door frame inset
   ctx.strokeStyle = "rgba(154, 125, 106, 0.6)";
   ctx.lineWidth = S * 0.8;
   ctx.strokeRect(
@@ -2206,58 +1873,40 @@ function drawCabinet(x, y) {
     TILE_SIZE - 7 * S,
     lift - 5 * S,
   );
-
-  // door open — show shelves inside
-  // shelf 1 — top
-  const sY1 = y - lift + 4 * S;
-  ctx.fillStyle = "#d4c4b8";
-  ctx.fillRect(x + 3 * S, sY1, TILE_SIZE - 6 * S, 1.2 * S);
-  // shelf 2 — mid
-  const sY2 = y - lift + 12 * S;
-  ctx.fillStyle = "#d4c4b8";
-  ctx.fillRect(x + 3 * S, sY2, TILE_SIZE - 6 * S, 1.2 * S);
-  // shelf 3 — lower
-  const sY3 = y - lift + 19 * S;
-  ctx.fillStyle = "#d4c4b8";
-  ctx.fillRect(x + 3 * S, sY3, TILE_SIZE - 6 * S, 1.2 * S);
-
-  // items on shelf 1 — small supply box (pads)
+  const sY1 = y - lift + 4 * S,
+    sY2 = y - lift + 12 * S,
+    sY3 = y - lift + 19 * S;
+  for (const sY of [sY1, sY2, sY3]) {
+    ctx.fillStyle = "#d4c4b8";
+    ctx.fillRect(x + 3 * S, sY, TILE_SIZE - 6 * S, 1.2 * S);
+  }
   ctx.fillStyle = "#d9a9b5";
   ctx.fillRect(x + 4 * S, sY1 + 1.5 * S, 7 * S, 5 * S);
   ctx.fillStyle = "#e8c4d0";
   ctx.fillRect(x + 4 * S, sY1 + 1.5 * S, 7 * S, 1.2 * S);
   ctx.fillStyle = "#c98fa0";
   ctx.fillRect(x + 4 * S, sY1 + 1.5 * S, 1.2 * S, 5 * S);
-  // cross symbol on box
   ctx.fillStyle = "#b87090";
   ctx.fillRect(x + 6.5 * S, sY1 + 3 * S, 2 * S, 0.8 * S);
   ctx.fillRect(x + 7.1 * S, sY1 + 2.5 * S, 0.8 * S, 2 * S);
-
-  // items on shelf 2 — heating pad (folded)
   ctx.fillStyle = "#7fc0a6";
   ctx.fillRect(x + 4 * S, sY2 + 1.5 * S, 10 * S, 5 * S);
   ctx.fillStyle = "#6aab92";
   ctx.fillRect(x + 4 * S, sY2 + 1.5 * S, 10 * S, 1.2 * S);
-  // cord
   ctx.strokeStyle = "#a8d0c0";
   ctx.lineWidth = S * 0.8;
   ctx.beginPath();
   ctx.moveTo(x + 14 * S, sY2 + 4 * S);
   ctx.quadraticCurveTo(x + 16 * S, sY2 + 6 * S, x + 15 * S, sY2 + 9 * S);
   ctx.stroke();
-
-  // items on shelf 3 — small pill bottle
   ctx.fillStyle = "#f3e6f0";
   ctx.fillRect(x + 4 * S, sY3 + 1.5 * S, 5 * S, 6 * S);
   ctx.fillStyle = "#7fc0a6";
   ctx.fillRect(x + 4 * S, sY3 + 1.5 * S, 5 * S, 2 * S);
-  // small red bottle beside it
   ctx.fillStyle = "#c44569";
   ctx.fillRect(x + 10 * S, sY3 + 2.5 * S, 4 * S, 5 * S);
   ctx.fillStyle = "#e0719a";
   ctx.fillRect(x + 10 * S, sY3 + 2.5 * S, 4 * S, 1.5 * S);
-
-  // door handle — small pull bar
   ctx.fillStyle = "#7d6452";
   ctx.fillRect(x + TILE_SIZE - 5.5 * S, y - lift / 2 - 2 * S, 1.8 * S, 4 * S);
   ctx.fillStyle = "#9a7d6a";
@@ -2267,18 +1916,12 @@ function drawCabinet(x, y) {
 function drawBathroomOil(x, y) {
   const S = TILE_SIZE / 20;
   const lift = 12 * S;
-
-  // small ledge/shelf
   ctx.fillStyle = "#9a7d6a";
   ctx.fillRect(x + 4 * S, y + 1 * S, TILE_SIZE - 8 * S, 2.5 * S);
-
-  // shadow
   ctx.fillStyle = "rgba(20,21,15,0.12)";
   ctx.beginPath();
   ctx.ellipse(x + TILE_SIZE / 2, y + 1 * S, 5 * S, 1.2 * S, 0, 0, Math.PI * 2);
   ctx.fill();
-
-  // bottle — slightly different tone than the bedside one
   ctx.fillStyle = "#cbb8d8";
   ctx.fillRect(
     x + TILE_SIZE / 2 - 3 * S,
@@ -2308,20 +1951,14 @@ function drawTree(x, y) {
   const S = TILE_SIZE / 20;
   const cx = x + TILE_SIZE / 2;
   const baseY = y + TILE_SIZE - 4 * S;
-
-  // shadow
   ctx.fillStyle = "rgba(140, 190, 165, 0.4)";
   ctx.beginPath();
   ctx.ellipse(cx, baseY + 1 * S, 10 * S, 2.5 * S, 0, 0, Math.PI * 2);
   ctx.fill();
-
-  // trunk
   ctx.fillStyle = "#cdb6a4";
   ctx.fillRect(cx - 2.5 * S, baseY - 12 * S, 5 * S, 12 * S);
   ctx.fillStyle = "#b89c89";
   ctx.fillRect(cx - 2.5 * S, baseY - 12 * S, 1.5 * S, 12 * S);
-
-  // foliage — layered ellipses for fullness
   ctx.fillStyle = "#a9d4be";
   ctx.beginPath();
   ctx.ellipse(cx, baseY - 17 * S, 14 * S, 12 * S, 0, 0, Math.PI * 2);
@@ -2336,7 +1973,6 @@ function drawTree(x, y) {
   ctx.beginPath();
   ctx.ellipse(cx, baseY - 26 * S, 7 * S, 6 * S, 0, 0, Math.PI * 2);
   ctx.fill();
-  // foliage texture dots
   ctx.fillStyle = "rgba(140, 190, 165, 0.4)";
   for (let i = 0; i < 6; i++) {
     const ang = (Math.PI * 2 * i) / 6;
@@ -2357,21 +1993,16 @@ function drawPlant(x, y) {
   const stage = PLANT_STAGES[state.plantStage];
   const cx = x + TILE_SIZE / 2;
   const baseY = y + TILE_SIZE - 4 * S;
-
-  // wilt factor: 0 = fully wilted, 1 = fully perky, based on day energy
   const energy = state.started ? currentDay().energyLevel : 1;
-  const wilt = energy; // 0.15 on day 3, 1.0 on day 1/6
-  // desaturated leaf color on bad days
+  const wilt = energy;
   const wiltColor =
     wilt < 0.5 ? `rgba(140, 160, 120, ${0.6 + wilt * 0.4})` : stage.leafColor;
 
-  // soft shadow
   ctx.fillStyle = "#e6d6e2";
   ctx.beginPath();
   ctx.ellipse(cx, baseY + 1 * S, 11 * S, 3 * S, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // pot — slightly tapered with rim
   ctx.fillStyle = stage.potColor;
   ctx.beginPath();
   ctx.moveTo(cx - 10 * S, baseY - 9 * S);
@@ -2380,10 +2011,8 @@ function drawPlant(x, y) {
   ctx.lineTo(cx - 8 * S, baseY);
   ctx.closePath();
   ctx.fill();
-  // rim
   ctx.fillStyle = "#c98fa0";
   ctx.fillRect(cx - 10 * S, baseY - 9 * S, 20 * S, 2.5 * S);
-  // pot shading stripe
   ctx.fillStyle = "rgba(255,255,255,0.18)";
   ctx.beginPath();
   ctx.moveTo(cx - 8 * S, baseY - 6 * S);
@@ -2393,13 +2022,11 @@ function drawPlant(x, y) {
   ctx.closePath();
   ctx.fill();
 
-  // soil
   ctx.fillStyle = "#7a6052";
   ctx.fillRect(cx - 9 * S, baseY - 9 * S, 18 * S, 2 * S);
 
-  // stem — curves sideways when wilting
   const stemH = 13 * S * stage.size;
-  const stemLean = (1 - wilt) * 8 * S; // leans right when wilted
+  const stemLean = (1 - wilt) * 8 * S;
   ctx.strokeStyle = wiltColor;
   ctx.lineWidth = 2 * S;
   ctx.beginPath();
@@ -2412,16 +2039,11 @@ function drawPlant(x, y) {
   );
   ctx.stroke();
 
-  // stem tip position (affected by lean)
   const stemTipX = cx + stemLean;
   const stemTipY = baseY - 9 * S - stemH;
-
-  // leaves — droop downward when wilting (dy positions shift down)
   const r = 13 * S * stage.size;
   const wiltDroop = (1 - wilt) * r * 0.6;
   const top = stemTipY - r * 0.6 * wilt;
-
-  // leaf angle rotates toward ground when wilted
   const wiltAngle = (1 - wilt) * 0.7;
   const positions = [
     [0, -r * 0.2 + wiltDroop, r, r * 0.7],
@@ -2438,7 +2060,6 @@ function drawPlant(x, y) {
     ctx.ellipse(stemTipX + dx, top + dy, rx, ry, leafAngle, 0, Math.PI * 2);
     ctx.fill();
   }
-  // leaf vein highlights — only on healthy days
   if (wilt > 0.4) {
     ctx.strokeStyle = "rgba(255,255,255,0.25)";
     ctx.lineWidth = S;
@@ -2450,9 +2071,7 @@ function drawPlant(x, y) {
       ctx.stroke();
     }
   }
-
   if (stage.bloom && wilt > 0.5) {
-    // bloom only shows when healthy enough
     ctx.globalAlpha = Math.min(1, (wilt - 0.5) * 3);
     ctx.fillStyle = "#f3a6c1";
     for (let i = 0; i < 5; i++) {
@@ -2473,8 +2092,6 @@ function drawPlant(x, y) {
     ctx.beginPath();
     ctx.arc(stemTipX, top - r * 0.5, 2 * S, 0, Math.PI * 2);
     ctx.fill();
-
-    // second smaller bloom
     ctx.fillStyle = "#fbd4e3";
     ctx.beginPath();
     ctx.arc(stemTipX - r * 0.7, top - r * 0.15, 2.5 * S, 0, Math.PI * 2);
@@ -2506,19 +2123,16 @@ function drawPlayer() {
   const t = performance.now() / (200 / bobSpeed);
   const bob = moving ? Math.sin(t) * bobAmount : 0;
   const walkFrame = moving ? (Math.sin(t) > 0 ? 1 : -1) : 0;
-
   const squish = 1 - (1 - energy) * 0.12;
   const w = PLAYER_SIZE;
   const h = PLAYER_SIZE * squish;
   const top = y + (PLAYER_SIZE - h) + bob;
 
-  // colors — Kikiyama-style palette
-  const SKIN = "#f0d9b8";
-  const SHADOW = "#dcc09e";
-  const HAIR = "#1c1a16";
-  const DRESS = "#1c1a16";
+  const SKIN = "#f0d9b8",
+    SHADOW = "#dcc09e",
+    HAIR = "#1c1a16",
+    DRESS = "#1c1a16";
 
-  // floor shadow
   ctx.fillStyle = "rgba(20, 21, 15, 0.22)";
   ctx.beginPath();
   ctx.ellipse(
@@ -2539,12 +2153,10 @@ function drawPlayer() {
   const bodyH = top + h - bodyTop;
   const bodyW = w * 0.66;
   const bodyX = x + (w - bodyW) / 2;
-
-  // legs / feet
-  const legW = bodyW * 0.3;
-  const legH = 4 * S;
+  const legW = bodyW * 0.3,
+    legH = 4 * S;
   const legOff = walkFrame * 1.2 * S;
-  // socks
+
   ctx.fillStyle = SKIN;
   ctx.fillRect(
     bodyX + bodyW * 0.14 + legOff,
@@ -2558,7 +2170,6 @@ function drawPlayer() {
     legW,
     legH * 0.55,
   );
-  // shoes
   ctx.fillStyle = HAIR;
   ctx.fillRect(
     bodyX + bodyW * 0.14 + legOff,
@@ -2573,7 +2184,6 @@ function drawPlayer() {
     legH * 0.45,
   );
 
-  // body — dark dress, slightly flared at hem
   ctx.fillStyle = DRESS;
   ctx.beginPath();
   ctx.moveTo(bodyX + 2 * S, bodyTop);
@@ -2582,7 +2192,6 @@ function drawPlayer() {
   ctx.lineTo(bodyX, bodyTop + bodyH - legH * 0.4);
   ctx.closePath();
   ctx.fill();
-  // dress side shading
   ctx.fillStyle = "#100f0c";
   ctx.beginPath();
   ctx.moveTo(bodyX, bodyTop);
@@ -2591,11 +2200,9 @@ function drawPlayer() {
   ctx.lineTo(bodyX, bodyTop + bodyH - legH * 0.4);
   ctx.closePath();
   ctx.fill();
-  // collar
   ctx.fillStyle = SKIN;
   ctx.fillRect(bodyX + bodyW * 0.5 - 2 * S, bodyTop, 4 * S, 1.5 * S);
 
-  // arms
   ctx.fillStyle = DRESS;
   ctx.fillRect(bodyX - 2 * S, bodyTop + 1 * S, 2.5 * S, bodyH * 0.5);
   ctx.fillRect(bodyX + bodyW - 0.5 * S, bodyTop + 1 * S, 2.5 * S, bodyH * 0.5);
@@ -2608,12 +2215,10 @@ function drawPlayer() {
     2 * S,
   );
 
-  // head — round face
   ctx.fillStyle = SKIN;
   ctx.beginPath();
   ctx.arc(headX + headD / 2, headY + headD / 2, headD / 2, 0, Math.PI * 2);
   ctx.fill();
-  // jaw shadow
   ctx.fillStyle = SHADOW;
   ctx.globalAlpha = 0.45;
   ctx.beginPath();
@@ -2629,7 +2234,6 @@ function drawPlayer() {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // hair — solid bob: rounded top cap
   ctx.fillStyle = HAIR;
   ctx.beginPath();
   ctx.arc(
@@ -2640,7 +2244,6 @@ function drawPlayer() {
     Math.PI * 2,
   );
   ctx.fill();
-  // side curtains
   ctx.fillRect(
     headX - 1.5 * S,
     headY + headD * 0.15,
@@ -2655,7 +2258,6 @@ function drawPlayer() {
   );
 
   if (dir !== "up") {
-    // straight bangs
     ctx.fillStyle = HAIR;
     ctx.fillRect(
       headX - 1 * S,
@@ -2663,15 +2265,12 @@ function drawPlayer() {
       headD + 2 * S,
       headD * 0.28,
     );
-    // zigzag fringe
     const fY = headY + headD * 0.36;
     const fW = (headD + 2 * S) / 6;
     for (let i = 0; i < 6; i++) {
       if (i % 2 === 0)
         ctx.fillRect(headX - 1 * S + i * fW, fY, fW, headD * 0.05);
     }
-
-    // eyes — always two dots, cluster to profile side
     const eyeY = headY + headD * 0.52;
     const eyeSize = 1.6 * S;
     ctx.fillStyle = HAIR;
@@ -2699,8 +2298,6 @@ function drawPlayer() {
     }
     ctx.fillRect(e1x, eyeY, eyeSize, eyeSize);
     ctx.fillRect(e2x, eyeY, eyeSize, eyeSize);
-
-    // blush
     ctx.fillStyle = "rgba(243, 166, 193, 0.38)";
     const br = headD * 0.07;
     if (dir === "down") {
@@ -2720,7 +2317,6 @@ function drawPlayer() {
       ctx.fill();
     }
   } else {
-    // facing away — full hair covers back of head
     ctx.fillStyle = HAIR;
     ctx.beginPath();
     ctx.arc(headX + headD / 2, headY + headD / 2, headD / 2, 0, Math.PI * 2);
@@ -2738,20 +2334,6 @@ function drawPlayer() {
       headD * 0.85,
     );
   }
-}
-
-function roundedRect(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x, y, x + r, y, r);
-  ctx.closePath();
 }
 
 function drawTint() {
@@ -2772,8 +2354,6 @@ function drawTitleScreen() {
   const S = TILE_SIZE / 20;
   ctx.fillStyle = "#0a0a0a";
   ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
-
-  // soft floating petal/leaf shapes for atmosphere, scattered across full canvas
   const t = performance.now() / 1000;
   const petals = [
     [0.08, 0.12],
@@ -2789,35 +2369,33 @@ function drawTitleScreen() {
   ctx.globalAlpha = 0.5;
   for (let i = 0; i < petals.length; i++) {
     const [pxF, pyF] = petals[i];
-    const px = pxF * LOGICAL_W;
-    const py = pyF * LOGICAL_H;
     const drift = Math.sin(t * 0.6 + i) * 4 * S;
     ctx.beginPath();
-    ctx.ellipse(px, py + drift, 5 * S, 3.5 * S, 0, 0, Math.PI * 2);
+    ctx.ellipse(
+      pxF * LOGICAL_W,
+      pyF * LOGICAL_H + drift,
+      5 * S,
+      3.5 * S,
+      0,
+      0,
+      Math.PI * 2,
+    );
     ctx.fill();
   }
   ctx.globalAlpha = 1;
-
-  // central potted bloom illustration
-  const cx = LOGICAL_W / 2;
-  const cy = LOGICAL_H / 2 - 50 * S;
+  const cx = LOGICAL_W / 2,
+    cy = LOGICAL_H / 2 - 50 * S;
   const sway = Math.sin(t * 0.8) * 3 * S;
-
-  // pot
   ctx.fillStyle = "#d9a9b5";
   ctx.fillRect(cx - 14 * S, cy + 20 * S, 28 * S, 15 * S);
   ctx.fillStyle = "#c98fa0";
   ctx.fillRect(cx - 14 * S, cy + 20 * S, 28 * S, 4 * S);
-
-  // stem
   ctx.strokeStyle = "#7fc0a6";
   ctx.lineWidth = 3 * S;
   ctx.beginPath();
   ctx.moveTo(cx + sway * 0.3, cy + 20 * S);
   ctx.quadraticCurveTo(cx + sway, cy, cx + sway * 0.5, cy - 20 * S);
   ctx.stroke();
-
-  // leaves
   ctx.fillStyle = "#8ec6ae";
   ctx.beginPath();
   ctx.ellipse(
@@ -2841,8 +2419,6 @@ function drawTitleScreen() {
     Math.PI * 2,
   );
   ctx.fill();
-
-  // bloom
   ctx.fillStyle = "#f3a6c1";
   for (let i = 0; i < 5; i++) {
     const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2;
@@ -2862,21 +2438,16 @@ function drawTitleScreen() {
   ctx.beginPath();
   ctx.arc(cx + sway * 0.5, cy - 20 * S, 4.5 * S, 0, Math.PI * 2);
   ctx.fill();
-
   ctx.textAlign = "center";
   ctx.fillStyle = "#f6ecf5";
   ctx.font = `${16 * S}px PixelFont, monospace`;
   ctx.fillText("iron bloom", cx, LOGICAL_H / 2 + 44 * S);
-
   ctx.font = `${8 * S}px PixelFont, monospace`;
   ctx.fillStyle = "#cbb8d8";
   ctx.fillText("six days, one small plant", cx, LOGICAL_H / 2 + 70 * S);
-
   ctx.fillStyle = "#9c8aac";
-  const blink = Math.sin(t * 2) > 0;
-  if (blink) {
+  if (Math.sin(t * 2) > 0)
     ctx.fillText("press any key or tap to begin", cx, LOGICAL_H - 16 * S);
-  }
   ctx.textAlign = "left";
 }
 
@@ -2885,18 +2456,15 @@ function render() {
   const scale = canvas.width / LOGICAL_W;
   ctx.scale(scale, scale);
   ctx.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
-
   if (!state.started) {
     drawTitleScreen();
     ctx.restore();
     return;
   }
-
   drawRoom();
   drawPlayer();
   drawTint();
   drawFade();
-
   ctx.restore();
 }
 
