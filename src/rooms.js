@@ -57,16 +57,9 @@ export const OUTSIDE = [
   [1, 1, 1, 1, 1, 1, 5, 5, 1, 1, 1, 1, 1, 1, 1, 1],
 ];
 
-// player's starting tile each day (bedroom)
 export const START_POS = { col: 10, row: 7 };
-// where the player appears in the outside scene
 export const OUTSIDE_START = { col: 6, row: 7 };
-// where the player appears entering the bathroom
 export const BATHROOM_START = { col: 6, row: 4 };
-
-// Tile legend (kitchen):
-// 0 = floor   1 = wall   5 = door (back to bedroom)
-// 29 = stove (with kettle)   30 = counter (with snacks, left)  32 = counter (right)  31 = fridge
 
 export const KITCHEN = [
   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -82,8 +75,6 @@ export const KITCHEN = [
 ];
 export const KITCHEN_START = { col: 6, row: 4 };
 
-// energyLevel: 0 (lowest) to 1 (full) — affects move speed and
-// how many "tend" presses the plant needs.
 export const DAYS = [
   {
     label: "day one",
@@ -115,28 +106,40 @@ export const DAYS = [
     kitchenDoor: "you step into the kitchen.",
     fridge: "you open it more out of habit than hunger, then close it again.",
     nightstand:
-      "the iron pills are on the nightstand. you take one with water. routine, mostly.",
+      "ferrous sulfate, 325mg. one pill, with a full glass of water — not coffee, not tea, the bottle says water. you take it. routine, mostly. the beet juice beside it is almost untouched.",
+    nightstandAgain:
+      "the bottle is still mostly full. at least a few weeks left.",
     bedsideOil:
       "a small bottle on the nightstand, just for nights. you put a drop on your wrist before bed.",
+    bedsideOilAgain: "lavender. it works, a little.",
     computer:
       "you turn on your computer. emails can wait, but you check anyway.",
+    computerAgain:
+      "you scroll for a minute, then close the tab. nothing urgent.",
     tea: "you make tea, mostly out of habit.",
+    teaAgain: "the tea's gone lukewarm. you drink it anyway.",
     diffuser: "you light the incense. lavender, faint, curling upward.",
+    diffuserAgain:
+      "the lavender has settled into the room now. you almost don't notice it anymore — that's how you know it's working.",
     windowAgain:
       "you look again. still warm. you let yourself enjoy it a second time.",
     mirrorAgain:
       "you smile a little at your reflection. nothing dramatic. just a normal morning.",
-    nightstandAgain:
-      "the bottle is still mostly full. plenty of days left in it.",
-    computerAgain:
-      "you scroll for a minute, then close the tab. nothing urgent.",
-    teaAgain: "the tea's gone lukewarm. you drink it anyway.",
-    diffuserAgain:
-      "the lavender has settled into the room now. you almost don't notice it anymore — that's how you know it's working.",
     snacksAgain:
       "you're not really hungry. you just like having something to hold.",
+    // kitchen
+    fridge:
+      "you open it more out of habit than hunger. leftover rice, half a lemon, a bottle of beet juice you keep meaning to finish. you close it.",
+    fridgeAgain: "still there. still not hungry enough.",
+    snacks:
+      "chips and a small piece of chocolate. a normal day's small pleasure.",
+    snacksAgain:
+      "you're not really hungry. you just like having something to hold.",
+    tea: "you put the kettle on. nettle tea today — you read somewhere it has iron in it. you're not sure if that's enough to matter, but it doesn't hurt.",
+    teaAgain: "the tea's gone lukewarm. you drink it anyway.",
     bedPrompt: "lie down and rest?",
-    tendLines: ["the leaves shift a little."],
+    // plant — day 1: one press, easy
+    tendLines: ["you water it a little. it seems to like that."],
     sleepLine: "the day folds quietly into night.",
   },
   {
@@ -151,6 +154,7 @@ export const DAYS = [
     door: "the door feels far away right now.",
     mirror: "tears come out of nowhere. you let them. it passes.",
     snacks: "you reach for the chips without thinking. comfort on autopilot.",
+    snacksAgain: "the chips are gone faster than you meant them to be.",
     couch:
       "the couch holds you a little too well today. it's hard to get back up.",
     couchAgain: "you pull a blanket over yourself without really deciding to.",
@@ -168,32 +172,36 @@ export const DAYS = [
     oilAgain: "the smell is grounding, somehow, even on a day like this.",
     bathroomDoor: "you step into the bathroom.",
     kitchenDoor: "you step into the kitchen, a little slower than usual.",
-    fridge: "the cold air feels good for a second. you grab the orange juice.",
     nightstand:
-      "today it's harder to remember if you took it. you check the bottle. you did. you make a mental note to drink some beet juice later — your iron's been low and every little bit counts.",
+      "you check the bottle — ferrous sulfate, 325mg. you took it yesterday. you think you took it today. you check again. yes. good. the beet juice is on the nightstand too. you drink some without sitting up all the way.",
+    nightstandAgain:
+      "you almost took a second pill by mistake. you didn't. close call.",
     bedsideOil:
       "you reach for the oil before lying down. it's part of the routine now.",
+    bedsideOilAgain: "you breathe it in deliberately. it helps, a little.",
     computer:
       "the screen is too bright. you lower it and just sit with it for a while.",
-    tea: "raspberry tea today. it actually helps with the cramps a little — something about the leaves. you remember your mom used to make you drink red pepper and guava juice instead. you hated it then. you'd give anything for a glass of it now.",
+    computerAgain:
+      "you close the laptop. the brightness wasn't really the problem.",
+    // kitchen
+    fridge:
+      "the cold air feels good on your face for a second. you grab the beet juice — your ferritin's been low and you're supposed to drink it every day. it tastes like dirt. you drink half.",
+    fridgeAgain:
+      "you finish the other half standing at the counter. it's easier if you don't think about it.",
+    tea: "raspberry leaf tea. it actually helps with the cramps — something about the tannins relaxing the uterus. your mom used to make you drink red pepper and guava juice instead. you hated it then. you'd give anything for a glass of it now.",
+    teaAgain: "you wrap both hands around the mug again, just for the warmth.",
     diffuser:
       "the smell helps more than you expected. a hot shower earlier helped too — your body still remembers the warmth.",
+    diffuserAgain:
+      "you breathe in deliberately this time. it helps, a little, to remember it's there.",
     windowAgain:
       "the bird is gone now. you watch the empty branch for a moment anyway.",
     mirrorAgain:
       "your face looks tired in a way that has nothing to do with sleep.",
-    nightstandAgain:
-      "you almost took a second pill by mistake. you didn't. close call, though.",
-    computerAgain:
-      "you close the laptop. the brightness wasn't really the problem.",
-    teaAgain: "you wrap both hands around the mug again, just for the warmth.",
-    diffuserAgain:
-      "you breathe in deliberately this time. it helps, a little, to remember it's there.",
-    snacksAgain: "the chips are gone faster than you meant them to be.",
     bedPrompt: "rest a while?",
+    // plant — day 2: three presses, heavier
     tendLines: [
       "reaching out takes a moment.",
-      "...",
       "...",
       "there. small, but something.",
     ],
@@ -210,7 +218,10 @@ export const DAYS = [
       "even with your eyes half-closed, the shapes outside are gentle. blurred, but gentle.",
     door: "not today.",
     mirror: "you don't really look. that's okay too.",
+    mirrorAgain: "you still don't look. that's twice now. it's fine.",
     snacks: "the chocolate sits unopened. maybe later. probably later.",
+    snacksAgain:
+      "you pick up the chocolate, turn it over once, and set it back down.",
     couch: "you don't mean to fall asleep here, but you do, for a while.",
     couchAgain: "still here. still tired. that's okay.",
     tub: "you sit on the floor of the shower for a while before you even turn the water on.",
@@ -228,30 +239,33 @@ export const DAYS = [
     oilAgain: "you breathe it in anyway. small comfort, low effort.",
     bathroomDoor: "you step into the bathroom. it feels far away today.",
     kitchenDoor: "you step into the kitchen. it feels far away today.",
-    fridge: "you don't have the energy to look for long. you close it.",
     nightstand:
-      "the bottle feels heavier than it looks today. you manage anyway.",
+      "the ferrous sulfate bottle feels heavier than it looks. you take the pill. you don't bother with the beet juice today — you can't. you just can't.",
+    nightstandAgain:
+      "you stare at the bottle for a while before deciding you already took it today. you did. you think.",
     bedsideOil: "you barely manage to dab a little on before your eyes close.",
+    bedsideOilAgain: "you breathe it in anyway. small comfort, low effort.",
     computer: "you don't open it today. that's okay.",
-    tea: "raspberry tea again, warm mug, both hands. the cramps are bad today. you don't move for a while. another hot shower might help the ache, but even that feels like too much right now. you would take almost anything that promised to make this easier.",
+    computerAgain: "the screen stays dark. you didn't even try this time.",
+    // kitchen
+    fridge:
+      "you open it and stand there. cold air on your face. you close it without taking anything.",
+    fridgeAgain:
+      "you don't have the energy to look for long. you close it again.",
+    tea: "raspberry leaf tea, both hands around the mug, not moving. the cramps are a 7 today, maybe an 8. your ferritin was a 4 at your last blood test. a 4. the doctor said that explained a lot. you believe her now.",
+    teaAgain: "the mug has gone cold in your hands. you didn't notice.",
     diffuser: "you turn it up. anything to soften the edges.",
+    diffuserAgain: "you turn the dial up another notch. it can't hurt.",
     windowAgain:
       "you don't open your eyes fully this time. the light is still there, somewhere past your eyelids.",
-    mirrorAgain: "you still don't look. that's twice now. it's fine.",
-    nightstandAgain:
-      "you stare at the bottle for a while before deciding you already took it today.",
-    computerAgain: "the screen stays dark. you didn't even try this time.",
-    teaAgain: "the mug has gone cold in your hands. you didn't notice.",
-    diffuserAgain: "you turn the dial up another notch. it can't hurt.",
-    snacksAgain:
-      "you pick up the chocolate, turn it over once, and set it back down.",
     bedPrompt: "every part of you aches. just rest. that's enough.",
+    // plant — day 3: five presses, mostly silence — costs the most
     tendLines: [
       "...",
       "...",
+      "you stand in front of it for a while.",
       "...",
-      "...",
-      "even just looking at it is something.",
+      "even just looking counts. you decide that.",
     ],
     sleepLine: "low days don't undo the rest. they're just part of it.",
   },
@@ -266,8 +280,11 @@ export const DAYS = [
     door: "maybe soon.",
     mirror:
       "your eyes are a little puffy. you've been more emotional than usual — that's part of this too.",
+    mirrorAgain:
+      "your eyes are less puffy than yesterday. small, but you notice.",
     snacks:
       "you eat the chocolate slowly. it actually helps a little, or maybe you just needed something sweet.",
+    snacksAgain: "you eat slower this time. it's nice, actually, to taste it.",
     couch: "you sit up a little. not all the way. but a little.",
     couchAgain:
       "the incense is still burning. you watch the smoke for a while.",
@@ -285,28 +302,34 @@ export const DAYS = [
     oilAgain: "it smells like a good day. or the start of one, anyway.",
     bathroomDoor: "you step into the bathroom.",
     kitchenDoor: "you step into the kitchen.",
-    fridge: "you find something easy to eat. that counts as a win today.",
     nightstand:
-      "beet juice this morning. it's not for the cramps — it's for the iron, to help bring your levels up. you used to hate the taste. your mom would make you drink it anyway. funny how that changes.",
+      "ferrous sulfate, water, done. you drink the beet juice too, the whole glass, without making a face. your mom would be proud. you text her later, maybe.",
+    nightstandAgain: "you remember without needing the reminder. that's new.",
     bedsideOil:
       "the lavender helps you settle, a little more than usual tonight.",
+    bedsideOilAgain:
+      "you breathe it in deliberately. it works better when you mean to.",
     computer:
       "a show plays quietly. you don't follow the plot, and that's fine too.",
-    tea: "ginger tea today. it helps, a little.",
-    diffuser: "still going. the room smells like rest.",
-    windowAgain: "the clouds have thinned a little more since you last looked.",
-    mirrorAgain:
-      "your eyes are less puffy than yesterday. small, but you notice.",
-    nightstandAgain:
-      "you remember to drink the beet juice this time without needing the reminder.",
     computerAgain:
-      "you watch another few minutes of the show. it's starting to make a little more sense.",
+      "you watch another few minutes. it's starting to make sense.",
+    // kitchen
+    fridge:
+      "beet juice, leftover soup, a clementine. your body wants the clementine — vitamin C helps absorb the iron, you read that once. you eat it standing at the counter.",
+    fridgeAgain: "you find something easy to eat. that counts as a win today.",
+    tea: "ginger tea. it helps with the nausea the iron pills sometimes bring. not today, but you make it anyway, just in case.",
     teaAgain: "you make a second cup without really planning to.",
+    diffuser: "still going. the room smells like rest.",
     diffuserAgain:
       "the smell is comforting now in a familiar way, like the room has a softer edge to it.",
-    snacksAgain: "you eat slower this time. it's nice, actually, to taste it.",
+    windowAgain: "the clouds have thinned a little more since you last looked.",
     bedPrompt: "rest when you need to.",
-    tendLines: ["...", "...", "...", "a little easier than yesterday."],
+    // plant — day 4: three presses, tentative
+    tendLines: [
+      "...",
+      "a little water. carefully.",
+      "it's still here. so are you.",
+    ],
     sleepLine: "small returns count too.",
   },
   {
@@ -320,8 +343,12 @@ export const DAYS = [
       "a breeze moves the curtain. you feel it before you see it.",
     door: "almost ready.",
     mirror: "a small laugh at nothing. mood's all over today, and that's fine.",
+    mirrorAgain:
+      "you catch yourself smiling again, for no clear reason. you let it happen.",
     snacks:
       "you grab a handful of chips and eat them standing up. no reason. just hungry.",
+    snacksAgain:
+      "you eat without really thinking about why. just because it's there, and you want it.",
     couch:
       "you curl up with one of the books, even if you don't end up reading much of it.",
     couchAgain: "you read a few more pages this time. small progress.",
@@ -341,31 +368,32 @@ export const DAYS = [
       "you'll need to buy more soon. that feels like a good problem to have.",
     bathroomDoor: "you step into the bathroom.",
     kitchenDoor: "you step into the kitchen.",
-    fridge: "you linger in front of it, deciding, in no rush.",
     nightstand:
-      "one more day of this. it's starting to feel like just part of mornings.",
+      "one more day of iron pills. you take it with the beet juice without thinking twice. it's just morning now.",
+    nightstandAgain:
+      "you count what's left in the bottle. enough. more than enough.",
     bedsideOil:
       "you take a moment with it tonight, breathing it in slowly before bed.",
+    bedsideOilAgain: "you think about buying the bigger bottle next time.",
     computer: "you reply to one message. small, but done.",
-    tea: "you make a second cup. why not.",
-    diffuser: "you refill the water. one more day of this, maybe.",
-    windowAgain:
-      "you crack it open a little further. the air feels good against the warmth of the room.",
-    mirrorAgain:
-      "you catch yourself smiling again, for no clear reason. you let it happen.",
-    nightstandAgain:
-      "you count the pills left in the bottle out of curiosity. more than you expected.",
     computerAgain:
-      "you open a new tab just to see what's there. nothing urgent — just curiosity, for once.",
+      "you open a new tab just to see what's there. curiosity, for once.",
+    // kitchen
+    fridge:
+      "you linger in front of it, deciding. beet juice, yes. maybe eggs. you feel like eggs.",
+    fridgeAgain: "you grab what you came for this time.",
+    tea: "nettle tea, properly steeped this time. it has more iron than you'd think for something that grows in a ditch. you read that and thought of your grandmother, who made you drink things from the yard growing up.",
     teaAgain:
       "you finish the second cup slower, by the window, watching the light shift.",
+    diffuser: "you refill the water. one more day of this, maybe.",
     diffuserAgain: "you think about refilling it before bed. you do.",
-    snacksAgain:
-      "you eat without really thinking about why. just because it's there, and you want it.",
+    windowAgain:
+      "you crack it open a little further. the air feels good against the warmth of the room.",
     bedPrompt: "rest, when you're ready.",
+    // plant — day 5: two presses, warmer
     tendLines: [
-      "a little easier than yesterday.",
-      "the plant leans toward you.",
+      "you tend to it properly today.",
+      "it leans toward you a little, you think.",
     ],
     sleepLine: "however you felt today — all of it — was allowed.",
   },
@@ -378,8 +406,12 @@ export const DAYS = [
     windowIdleLine: "the air smells like outside. green, a little cold, alive.",
     door: "you open the door.",
     mirror: "there you are.",
+    mirrorAgain:
+      "you look a little longer this time. it's a good kind of looking.",
     snacks:
       "the snack bowl is almost empty. you made it through the week, one small thing at a time.",
+    snacksAgain:
+      "the bowl really is almost empty now. you'll restock, eventually.",
     couch:
       "you sit properly today, book open, incense lit, nowhere you need to rush off to.",
     couchAgain: "this is a good place to end the day. quiet. yours.",
@@ -399,31 +431,33 @@ export const DAYS = [
       "you set it back down gently. you'll buy more before you need it.",
     bathroomDoor: "you step into the bathroom.",
     kitchenDoor: "you step into the kitchen.",
-    fridge:
-      "mostly leftovers and a few things to restock. you make a mental list.",
     nightstand:
-      "the bottle's getting low. you'll need a refill soon — but not today.",
+      "last pill of this cycle. ferrous sulfate, water, done. you'll get your levels checked again next month. a 4 was where you started. you wonder what number you are now. higher, you think. you feel higher.",
+    nightstandAgain:
+      "you make a note to order more before next month. small errands feel possible again.",
     bedsideOil:
       "the bottle's nearly empty. it carried you through the week, same as everything else.",
+    bedsideOilAgain:
+      "you set it back down gently. you'll buy more before you need it.",
     computer: "you close a few tabs. nothing urgent left.",
-    tea: "tea by the open window. nice.",
-    diffuser:
-      "you let the incense burn out instead of lighting a new one. you don't need it today — but you might tomorrow, and that's fine.",
-    windowAgain:
-      "you stand there a while longer, just looking. no reason to rush.",
-    mirrorAgain:
-      "you look a little longer this time. it's a good kind of looking.",
-    nightstandAgain:
-      "you make a note to buy more soon. small errands feel possible again.",
     computerAgain:
       "you open something just for fun. not work. just because you want to.",
+    // kitchen
+    fridge:
+      "beet juice, almost gone. you finish it standing at the counter, looking out the window. it doesn't taste like dirt anymore. or maybe it does and you don't mind.",
+    fridgeAgain:
+      "mostly leftovers and a few things to restock. you make a mental list.",
+    tea: "tea by the open window. just tea. no reason behind it today.",
     teaAgain:
       "the tea's gone, but you keep holding the empty mug for a moment longer.",
+    diffuser:
+      "you let the incense burn out instead of lighting a new one. you don't need it today — but you might tomorrow, and that's fine.",
     diffuserAgain: "you turn it off, this time without a second thought.",
-    snacksAgain:
-      "the bowl really is almost empty now. you'll need to restock, eventually.",
+    windowAgain:
+      "you stand there a while longer, just looking. no reason to rush.",
     bedPrompt: "rest, when you're ready.",
-    tendLines: ["it's grown, even through the hard days."],
+    // plant — day 6: one press, quiet and earned
+    tendLines: ["it bloomed, even through all of it."],
     sleepLine:
       "however you moved through these days — that was enough. the bloom doesn't ask for more than you have.",
     isLast: true,
