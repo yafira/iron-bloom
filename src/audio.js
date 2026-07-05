@@ -1,7 +1,6 @@
-// ─── IRON BLOOM AUDIO ───────────────────────────────────────────────────────
+// IRON BLOOM AUDIO
 
 let _ctx = null;
-let _lastChimeIndex = -1;
 
 function getCtx() {
   if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -12,62 +11,237 @@ function getCtx() {
 export function initAudio() {
   getCtx();
 }
+export function setAmbientEnergy(_e) {}
 
-export function setAmbientEnergy(_energyLevel) {}
-
-// ─── SLEEP TONES BY DAY ──────────────────────────────────────────────────────
-// Each day gets its own emotional phrase played on sleep.
-// Arc: bright → dulling → lowest → returning → warmer → resolved
+// CHIME FAMILIES
+// Each object type gets its own tonal family.
+// Within each family there's slight pitch/timing randomness so it never
+// sounds identical twice.
 //
-// day 1 — hopeful, upward
-// day 2 — still okay, small descent
-// day 3 — lowest, heavy, slow
-// day 4 — a little lighter, tentative
-// day 5 — warmer, almost there
-// day 6 — resolved, open
+// families:
+//   "soft"    — bed, couch, oil, bedsideOil  (warm low tones, slow decay)
+//   "bright"  — window, door, outside        (higher, open, quick)
+//   "plant"   — plant tending                (earthy mid tones, longer)
+//   "glass"   — mirror, sink, tub            (clear, bell-like)
+//   "paper"   — journal, computer            (dry, subtle, short)
+//   "metal"   — workbench, nightstand        (slightly harder, metallic partial)
+//   "warm"    — tea, kitchen, fridge, snacks (round, homey)
+//   "nav"     — doors, transitions           (neutral, short)
 
+const FAMILIES = {
+  soft: {
+    notes: [
+      [220, 330],
+      [196, 294],
+      [220, 262],
+    ],
+    filterHz: 700,
+    gain: 0.13,
+    decay: 1.2,
+    type: "triangle",
+  },
+  bright: {
+    notes: [
+      [523, 659],
+      [587, 740],
+      [494, 622],
+    ],
+    filterHz: 2400,
+    gain: 0.14,
+    decay: 0.7,
+    type: "sine",
+  },
+  plant: {
+    notes: [
+      [294, 392, 440],
+      [262, 349, 440],
+      [294, 370, 494],
+    ],
+    filterHz: 900,
+    gain: 0.13,
+    decay: 1.1,
+    type: "triangle",
+  },
+  glass: {
+    notes: [
+      [523, 659],
+      [494, 622],
+      [554, 698],
+    ],
+    filterHz: 2000,
+    gain: 0.12,
+    decay: 1.3,
+    type: "sine",
+  },
+  paper: {
+    notes: [[440], [392], [415]],
+    filterHz: 1200,
+    gain: 0.1,
+    decay: 0.6,
+    type: "triangle",
+  },
+  metal: {
+    notes: [
+      [330, 440],
+      [294, 392],
+      [349, 466],
+    ],
+    filterHz: 1400,
+    gain: 0.12,
+    decay: 0.9,
+    type: "sawtooth",
+  },
+  warm: {
+    notes: [
+      [349, 440],
+      [330, 415],
+      [370, 466],
+    ],
+    filterHz: 1000,
+    gain: 0.12,
+    decay: 1.0,
+    type: "triangle",
+  },
+  nav: {
+    notes: [[392], [349], [415]],
+    filterHz: 1600,
+    gain: 0.11,
+    decay: 0.5,
+    type: "sine",
+  },
+};
+
+// tile → family mapping
+const TILE_FAMILY = {
+  2: "soft", // bed
+  3: "plant", // plant
+  4: "bright", // window
+  5: "nav", // door
+  7: "glass", // mirror
+  9: "metal", // nightstand
+  10: "paper", // computer/desk
+  13: "paper",
+  17: "metal",
+  20: "soft", // couch
+  21: "soft",
+  22: "warm", // coffee table
+  23: "nav", // bathroom door
+  24: "glass", // tub
+  25: "glass", // sink
+  26: "metal", // cabinet
+  27: "soft", // bedside oil
+  28: "soft", // bathroom oil
+  29: "warm", // stove/tea
+  30: "warm", // counter/snacks
+  31: "warm", // fridge
+  32: "warm",
+  33: "nav", // kitchen door
+  34: "soft", // toilet
+  35: "paper", // journal
+  36: "metal", // workbench
+  37: "metal",
+  38: "warm", // fruit bowl
+  39: "soft", // bench
+};
+
+function playFamily(family) {
+  const ctx = getCtx();
+  const f = FAMILIES[family] || FAMILIES.warm;
+
+  // pick a random note sequence from this family
+  const notes = f.notes[Math.floor(Math.random() * f.notes.length)];
+  // slight random detune ±12 cents for variation within family
+  const detune = (Math.random() - 0.5) * 24;
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = f.gain;
+  masterGain.connect(ctx.destination);
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = f.filterHz;
+  filter.Q.value = 1.8;
+  filter.connect(masterGain);
+
+  notes.forEach((freq, i) => {
+    const delay = i * 0.11 + Math.random() * 0.02; // tiny timing variation
+    const osc = ctx.createOscillator();
+    osc.type = f.type;
+    osc.frequency.value = freq;
+    osc.detune.value = detune;
+
+    // inharmonic shimmer partial — gives each note a little life
+    const osc2 = ctx.createOscillator();
+    osc2.type = "sine";
+    osc2.frequency.value = freq * (f.type === "sawtooth" ? 2.1 : 2.756);
+    osc2.detune.value = detune * 0.5;
+
+    const g = ctx.createGain();
+    const g2 = ctx.createGain();
+    const decay = f.decay + (Math.random() - 0.5) * 0.15;
+    const now = ctx.currentTime + delay;
+
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.8, now + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + decay);
+
+    g2.gain.setValueAtTime(0, now);
+    g2.gain.linearRampToValueAtTime(0.18, now + 0.012);
+    g2.gain.exponentialRampToValueAtTime(0.0001, now + decay * 0.4);
+
+    osc.connect(g);
+    g.connect(filter);
+    osc2.connect(g2);
+    g2.connect(masterGain); // shimmer bypasses filter for sparkle
+
+    osc.start(now);
+    osc.stop(now + decay + 0.05);
+    osc2.start(now);
+    osc2.stop(now + decay * 0.4 + 0.05);
+  });
+}
+
+// tile is passed from interact() so each object gets its family
+export function playChime(tile) {
+  const family = TILE_FAMILY[tile] || "warm";
+  playFamily(family);
+}
+
+// SLEEP TONE
 const SLEEP_PHRASES = [
-  // day 1 — bright rising phrase
   [
     { freq: 349, t: 0 },
     { freq: 440, t: 0.5 },
     { freq: 523, t: 1.0 },
-  ],
-  // day 2 — gentle dip
+  ], // day 1 bright rise
   [
     { freq: 392, t: 0 },
     { freq: 349, t: 0.7 },
-  ],
-  // day 3 — heavy, slow, low
+  ], // day 2 gentle dip
   [
     { freq: 220, t: 0 },
     { freq: 196, t: 1.0 },
-  ],
-  // day 4 — cautious lift
+  ], // day 3 heavy, low
   [
     { freq: 262, t: 0 },
     { freq: 294, t: 0.8 },
-  ],
-  // day 5 — warmer two-note rise
+  ], // day 4 cautious lift
   [
     { freq: 330, t: 0 },
     { freq: 392, t: 0.6 },
     { freq: 440, t: 1.1 },
-  ],
-  // day 6 — full resolution, open and clear
+  ], // day 5 warmer rise
   [
     { freq: 349, t: 0 },
     { freq: 440, t: 0.5 },
     { freq: 523, t: 0.9 },
     { freq: 587, t: 1.3 },
-  ],
+  ], // day 6 full resolution
 ];
-
-// filter brightness by day — day 3 most muffled, day 6 most open
 const SLEEP_FILTER = [1200, 900, 500, 700, 1000, 1800];
 const SLEEP_GAIN = [0.13, 0.12, 0.11, 0.12, 0.13, 0.14];
 
-function playSleepPhrase(dayIndex) {
+export function playSleepTone(isLastDay = false, dayIndex = 0) {
   const ctx = getCtx();
   const phrase = SLEEP_PHRASES[dayIndex] ?? SLEEP_PHRASES[0];
   const filterHz = SLEEP_FILTER[dayIndex] ?? 1000;
@@ -91,7 +265,6 @@ function playSleepPhrase(dayIndex) {
 
     const g = ctx.createGain();
     const now = ctx.currentTime + t;
-    // day 3 gets a slower attack for extra heaviness
     const attack = dayIndex === 2 ? 0.08 : 0.04;
     const decay = dayIndex === 2 ? 2.2 : 1.8;
 
@@ -104,7 +277,6 @@ function playSleepPhrase(dayIndex) {
     osc.start(now);
     osc.stop(now + decay + 0.1);
 
-    // sub octave for weight
     const sub = ctx.createOscillator();
     sub.type = "sine";
     sub.frequency.value = freq * 0.5;
@@ -116,79 +288,5 @@ function playSleepPhrase(dayIndex) {
     subG.connect(masterGain);
     sub.start(now);
     sub.stop(now + decay + 0.1);
-  });
-}
-
-// dayIndex is passed from main.js sleep() call
-export function playSleepTone(isLastDay = false, dayIndex = 0) {
-  playSleepPhrase(dayIndex);
-}
-
-// ─── CHIME POOL ──────────────────────────────────────────────────────────────
-
-const CHIME_NOTES = [
-  [294, 349],
-  [392, 440],
-  [262, 294, 349],
-  [440, 392],
-  [349, 294],
-  [294, 440],
-  [392],
-  [440, 349, 294],
-];
-
-export function playChime() {
-  const ctx = getCtx();
-
-  let idx;
-  do {
-    idx = Math.floor(Math.random() * CHIME_NOTES.length);
-  } while (idx === _lastChimeIndex && CHIME_NOTES.length > 1);
-  _lastChimeIndex = idx;
-
-  const notes = CHIME_NOTES[idx];
-
-  notes.forEach((freq, i) => {
-    const delay = i * 0.13;
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 900;
-    filter.Q.value = 3.0;
-
-    const masterGain = ctx.createGain();
-    masterGain.gain.value = 0.14;
-    filter.connect(masterGain);
-    masterGain.connect(ctx.destination);
-
-    const osc = ctx.createOscillator();
-    osc.type = "sawtooth";
-    osc.frequency.value = freq;
-    osc.detune.value = -6;
-
-    const g = ctx.createGain();
-    const decay = 0.7 + Math.random() * 0.2;
-    const now = ctx.currentTime + delay;
-
-    g.gain.setValueAtTime(0, now);
-    g.gain.linearRampToValueAtTime(0.75, now + 0.015);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + decay);
-
-    osc.connect(g);
-    g.connect(filter);
-    osc.start(now);
-    osc.stop(now + decay + 0.05);
-
-    const sub = ctx.createOscillator();
-    sub.type = "sine";
-    sub.frequency.value = freq * 0.5;
-    const subG = ctx.createGain();
-    subG.gain.setValueAtTime(0, now);
-    subG.gain.linearRampToValueAtTime(0.2, now + 0.015);
-    subG.gain.exponentialRampToValueAtTime(0.0001, now + decay * 0.6);
-    sub.connect(subG);
-    subG.connect(masterGain);
-    sub.start(now);
-    sub.stop(now + decay + 0.05);
   });
 }

@@ -19,6 +19,7 @@ import {
   KITCHEN_START,
   DAYS,
   PLANT_STAGES,
+  JOURNAL_ENTRIES,
 } from "./rooms.js";
 
 const canvas = document.getElementById("game");
@@ -26,6 +27,156 @@ const ctx = canvas.getContext("2d");
 const textBox = document.getElementById("text-box");
 const dayLabel = document.getElementById("day-label");
 
+// JOURNAL OVERLAY
+const journalOverlay = document.createElement("div");
+journalOverlay.id = "journal-overlay";
+journalOverlay.innerHTML = `
+  <div id="journal-inner">
+    <div id="journal-header">
+      <span id="journal-date"></span>
+      <button id="journal-close">✕</button>
+    </div>
+    <div id="journal-body"></div>
+    <div id="journal-nav">
+      <button id="journal-prev">← prev</button>
+      <span id="journal-page"></span>
+      <button id="journal-next">next →</button>
+    </div>
+  </div>
+`;
+document.body.appendChild(journalOverlay);
+
+const style = document.createElement("style");
+style.textContent = `
+  #journal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 10, 8, 0.88);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+  }
+  #journal-overlay.open { display: flex; }
+  #journal-inner {
+    background: #1a1a14;
+    border: 1.5px solid #4a5a38;
+    border-radius: 4px;
+    padding: 28px 32px 20px;
+    max-width: 480px;
+    width: 90%;
+    font-family: monospace;
+    color: #c8d4a8;
+    position: relative;
+  }
+  #journal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #4a5a38;
+    padding-bottom: 10px;
+  }
+  #journal-date {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #7d8a5e;
+    text-transform: lowercase;
+  }
+  #journal-close {
+    background: none;
+    border: none;
+    color: #7d8a5e;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+  }
+  #journal-close:hover { color: #c8d4a8; }
+  #journal-body {
+    font-size: 12px;
+    line-height: 1.9;
+    letter-spacing: 0.5px;
+    white-space: pre-wrap;
+    min-height: 180px;
+    color: #b8c498;
+  }
+  #journal-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 18px;
+    padding-top: 10px;
+    border-top: 1px solid #4a5a38;
+    font-size: 10px;
+    color: #7d8a5e;
+  }
+  #journal-nav button {
+    background: none;
+    border: 1px solid #4a5a38;
+    color: #7d8a5e;
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 2px;
+  }
+  #journal-nav button:hover { color: #c8d4a8; border-color: #c8d4a8; }
+  #journal-nav button:disabled { opacity: 0.3; cursor: default; }
+`;
+document.head.appendChild(style);
+
+let journalPage = 0;
+
+function openJournal() {
+  const unlocked = Math.min(state.dayIndex + 1, JOURNAL_ENTRIES.length);
+  journalPage = Math.min(journalPage, unlocked - 1);
+  renderJournalPage(unlocked);
+  journalOverlay.classList.add("open");
+  state.journalOpen = true;
+}
+
+function renderJournalPage(unlocked) {
+  const entry = JOURNAL_ENTRIES[journalPage];
+  document.getElementById("journal-date").textContent = entry.date;
+  document.getElementById("journal-body").textContent = entry.text;
+  document.getElementById("journal-page").textContent =
+    `${journalPage + 1} / ${unlocked}`;
+  document.getElementById("journal-prev").disabled = journalPage === 0;
+  document.getElementById("journal-next").disabled =
+    journalPage >= unlocked - 1;
+}
+
+function closeJournal() {
+  journalOverlay.classList.remove("open");
+  state.journalOpen = false;
+}
+
+document
+  .getElementById("journal-close")
+  .addEventListener("click", closeJournal);
+document.getElementById("journal-prev").addEventListener("click", () => {
+  if (journalPage > 0) {
+    journalPage--;
+    renderJournalPage(Math.min(state.dayIndex + 1, JOURNAL_ENTRIES.length));
+  }
+});
+document.getElementById("journal-next").addEventListener("click", () => {
+  const unlocked = Math.min(state.dayIndex + 1, JOURNAL_ENTRIES.length);
+  if (journalPage < unlocked - 1) {
+    journalPage++;
+    renderJournalPage(unlocked);
+  }
+});
+
+// close journal on Escape or Space
+window.addEventListener("keydown", (e) => {
+  if (state.journalOpen && (e.key === "Escape" || e.key === " ")) {
+    e.preventDefault();
+    closeJournal();
+  }
+});
+
+// CANVAS / STATE
 const LOGICAL_W = COLS * TILE_SIZE;
 const LOGICAL_H = ROWS * TILE_SIZE;
 
@@ -59,12 +210,15 @@ const state = {
   idleTime: 0,
   idleLineShown: false,
   visitedObjects: new Set(),
+  journalOpen: false,
+  benchSat: false,
+  benchDone: false,
+  textLocked: false,
 };
 
 function currentDay() {
   return DAYS[state.dayIndex];
 }
-
 function currentGrid() {
   if (state.scene === "outside") return OUTSIDE;
   if (state.scene === "bathroom") return BATHROOM;
@@ -72,11 +226,12 @@ function currentGrid() {
   return ROOM;
 }
 
-function showLine(line, holdMs) {
+function showLine(line, holdMs, force = false) {
+  if (state.textLocked && !force) return; // bench narrative lock
   textBox.textContent = line;
   textBox.classList.remove("hidden");
+  clearTimeout(textBox._t); // always cancel any previously scheduled hide
   if (holdMs) {
-    clearTimeout(textBox._t);
     textBox._t = setTimeout(() => textBox.classList.add("hidden"), holdMs);
   }
 }
@@ -103,9 +258,7 @@ function startAudioOnce() {
 window.addEventListener("keydown", startAudioOnce, { once: true });
 window.addEventListener("pointerdown", startAudioOnce, { once: true });
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
-    initAudio();
-  }
+  if (document.visibilityState === "visible") initAudio();
 });
 window.addEventListener("pointerdown", () => {
   if (!state.started) beginGame();
@@ -113,6 +266,7 @@ window.addEventListener("pointerdown", () => {
 
 const keys = new Set();
 window.addEventListener("keydown", (e) => {
+  if (state.journalOpen) return;
   const k = e.key.toLowerCase();
   if (
     [
@@ -128,21 +282,18 @@ window.addEventListener("keydown", (e) => {
       "enter",
       "r",
     ].includes(k)
-  ) {
+  )
     e.preventDefault();
-  }
   initAudio();
   if (!state.started) {
     beginGame();
     return;
   }
   if (state.transitioning) return;
-
-  if (k === "r" && state.ended) {
+  if (k === "r" && (state.ended || state.benchDone)) {
     restart();
     return;
   }
-
   if (
     [
       "arrowup",
@@ -154,13 +305,9 @@ window.addEventListener("keydown", (e) => {
       "arrowright",
       "d",
     ].includes(k)
-  ) {
+  )
     keys.add(k);
-  }
-
-  if (k === " " || k === "enter") {
-    interact();
-  }
+  if (k === " " || k === "enter") interact();
 });
 window.addEventListener("keyup", (e) => {
   keys.delete(e.key.toLowerCase());
@@ -172,6 +319,7 @@ document
     const key = btn.dataset.key;
     const press = (e) => {
       e.preventDefault();
+      if (state.journalOpen) return;
       startAudioOnce();
       if (!state.started) {
         beginGame();
@@ -193,23 +341,31 @@ document
 
 document.getElementById("t-interact")?.addEventListener("touchstart", (e) => {
   e.preventDefault();
+  if (state.journalOpen) {
+    closeJournal();
+    return;
+  }
   startAudioOnce();
   if (!state.started) {
     beginGame();
     return;
   }
-  if (state.ended) {
+  if (state.ended || (state.benchDone && state.scene === "outside")) {
     restart();
     return;
   }
   if (!state.transitioning) interact();
 });
 document.getElementById("t-interact")?.addEventListener("click", (e) => {
+  if (state.journalOpen) {
+    closeJournal();
+    return;
+  }
   if (!state.started) {
     beginGame();
     return;
   }
-  if (state.ended) {
+  if (state.ended || (state.benchDone && state.scene === "outside")) {
     restart();
     return;
   }
@@ -226,6 +382,9 @@ function restart() {
   state.visitedObjects = new Set();
   state.scene = "room";
   state.ended = false;
+  state.benchSat = false;
+  state.benchDone = false;
+  state.textLocked = false;
   state.player.x = START_POS.col * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
   state.player.y = START_POS.row * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
   state.player.dir = "down";
@@ -239,7 +398,35 @@ function tileAt(col, row) {
   return currentGrid()[row][col];
 }
 function isBlocking(code) {
-  return code !== 0 && code !== 6;
+  const passable = new Set([
+    0, // floor
+    6, // rug
+    10,
+    13,
+    17, // desk
+    35, // journal table
+    36,
+    37, // workbench
+    38, // fruit bowl
+    // bathroom furniture
+    24,
+    25,
+    26,
+    28,
+    34,
+    // kitchen furniture
+    29,
+    30,
+    31,
+    32,
+    // bedroom furniture
+    9,
+    20,
+    21,
+    22,
+    27,
+  ]);
+  return !passable.has(code);
 }
 function canStandAt(x, y) {
   const corners = [
@@ -249,22 +436,22 @@ function canStandAt(x, y) {
     [x + PLAYER_SIZE - 1, y + PLAYER_SIZE - 1],
   ];
   for (const [cx, cy] of corners) {
-    const col = Math.floor(cx / TILE_SIZE);
-    const row = Math.floor(cy / TILE_SIZE);
-    if (isBlocking(tileAt(col, row))) return false;
+    if (
+      isBlocking(tileAt(Math.floor(cx / TILE_SIZE), Math.floor(cy / TILE_SIZE)))
+    )
+      return false;
   }
   return true;
 }
-
 function facingTile() {
   const cx = state.player.x + PLAYER_SIZE / 2;
   const cy = state.player.y + PLAYER_SIZE / 2;
   let col = Math.floor(cx / TILE_SIZE);
   let row = Math.floor(cy / TILE_SIZE);
-  if (state.player.dir === "up") row -= 1;
-  if (state.player.dir === "down") row += 1;
-  if (state.player.dir === "left") col -= 1;
-  if (state.player.dir === "right") col += 1;
+  if (state.player.dir === "up") row--;
+  if (state.player.dir === "down") row++;
+  if (state.player.dir === "left") col--;
+  if (state.player.dir === "right") col++;
   return tileAt(col, row);
 }
 
@@ -272,7 +459,7 @@ function interact() {
   const day = currentDay();
   const tile = facingTile();
 
-  function showWithFollowup(key, holdMs, chime) {
+  function showWithFollowup(key, holdMs, tileCode) {
     const again = day[key + "Again"];
     if (state.visitedObjects.has(key) && again) {
       showLine(again, holdMs);
@@ -280,73 +467,100 @@ function interact() {
       showLine(day[key], holdMs);
       state.visitedObjects.add(key);
     }
-    playChime(chime);
+    playChime(tileCode);
   }
 
+  if (tile === 35) {
+    playChime(35);
+    if (day.journal) showLine(day.journal, 1500);
+    journalPage = state.dayIndex; // always open to today's entry
+    setTimeout(() => openJournal(), 600);
+    return;
+  }
+  if (tile === 36 || tile === 37) {
+    showWithFollowup("workbench", 3500, 36);
+    return;
+  }
+  if (tile === 38) {
+    showWithFollowup("fruitBowl", 3500, 30);
+    return;
+  }
+  if (tile === 39) {
+    if (state.scene === "outside" && !state.benchSat) {
+      state.benchSat = true;
+      state.textLocked = true; // prevent anything from overwriting this
+      // FIX: pass force=true so this line isn't blocked by the lock
+      // we just set on the line above (showLine bails out early if
+      // textLocked is already true and force isn't passed).
+      showLine(currentDay().benchLine || "you sit for a while.", null, true);
+      playChime(20);
+    }
+    return;
+  }
   if (tile === 4) {
-    showWithFollowup("window", 3500, 740);
+    showWithFollowup("window", 3500, 4);
     return;
   }
   if (tile === 7) {
-    showWithFollowup("mirror", 3000, 700);
+    showWithFollowup("mirror", 3000, 7);
     return;
   }
   if (tile === 9) {
-    showWithFollowup("nightstand", 3500, 660);
+    showWithFollowup("nightstand", 3500, 9);
     return;
   }
   if (tile === 27) {
-    showWithFollowup("bedsideOil", 3500, 700);
+    showWithFollowup("bedsideOil", 3500, 27);
     return;
   }
   if (tile === 24) {
-    showWithFollowup("tub", 3500, 600);
+    showWithFollowup("tub", 3500, 24);
     return;
   }
   if (tile === 34) {
-    showWithFollowup("toilet", 3500, 580);
+    showWithFollowup("toilet", 3500, 34);
     return;
   }
   if (tile === 25) {
-    showWithFollowup("sink", 3500, 640);
+    showWithFollowup("sink", 3500, 25);
     return;
   }
   if (tile === 26) {
-    showWithFollowup("cabinet", 3500, 580);
+    showWithFollowup("cabinet", 3500, 26);
     return;
   }
   if (tile === 28) {
-    showWithFollowup("oil", 3500, 720);
+    showWithFollowup("oil", 3500, 28);
     return;
   }
   if (tile === 10 || tile === 13 || tile === 17) {
-    showWithFollowup("computer", 3500, 600);
+    showWithFollowup("computer", 3500, 10);
     return;
   }
   if (tile === 29) {
-    showWithFollowup("tea", 3500, 640);
+    showWithFollowup("tea", 3500, 29);
     return;
   }
   if (tile === 30 || tile === 32) {
-    showWithFollowup("snacks", 3500, 580);
+    showWithFollowup("snacks", 3500, 30);
     return;
   }
   if (tile === 31) {
-    showWithFollowup("fridge", 3000, 600);
+    showWithFollowup("fridge", 3000, 31);
     return;
   }
   if (tile === 20 || tile === 21) {
-    showWithFollowup("couch", 3500, 680);
+    showWithFollowup("couch", 3500, 20);
     return;
   }
   if (tile === 22) {
-    showWithFollowup("diffuser", 3500, 720);
+    showWithFollowup("diffuser", 3500, 22);
     return;
   }
 
   if (tile === 23) {
     showLine(day.bathroomDoor, 1800);
-    playChime(560);
+    playChime(23);
     state.transitioning = true;
     setTimeout(() => {
       state.scene = "bathroom";
@@ -361,7 +575,7 @@ function interact() {
   }
   if (tile === 33) {
     showLine(day.kitchenDoor, 1800);
-    playChime(560);
+    playChime(33);
     state.transitioning = true;
     setTimeout(() => {
       state.scene = "kitchen";
@@ -376,7 +590,7 @@ function interact() {
   }
   if (tile === 5) {
     if (state.scene === "bathroom") {
-      playChime(560);
+      playChime(5);
       state.scene = "room";
       state.player.x = 14 * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
       state.player.y = 7 * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
@@ -384,7 +598,7 @@ function interact() {
       return;
     }
     if (state.scene === "kitchen") {
-      playChime(560);
+      playChime(5);
       state.scene = "room";
       state.player.x = 14 * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
       state.player.y = 9 * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
@@ -393,7 +607,7 @@ function interact() {
     }
     if (state.scene === "room" && day.isLast) {
       showLine(day.door, 2200);
-      playChime(560);
+      playChime(5);
       state.transitioning = true;
       setTimeout(() => {
         state.scene = "outside";
@@ -408,7 +622,7 @@ function interact() {
       return;
     }
     if (state.scene === "outside") {
-      playChime(560);
+      playChime(5);
       state.scene = "room";
       state.player.x =
         START_POS.col * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
@@ -419,21 +633,21 @@ function interact() {
       return;
     }
     showLine(day.door, 3000);
-    playChime(520);
+    playChime(5);
     return;
   }
   if (tile === 3) {
     const lines = day.tendLines;
     if (state.tendIndex < lines.length) {
       showLine(lines[state.tendIndex], 2500);
-      playChime(620 + state.tendIndex * 30);
+      playChime(3);
       state.tendIndex++;
       if (state.tendIndex === lines.length) {
         state.plantStage = Math.min(
           state.plantStage + 1,
           PLANT_STAGES.length - 1,
         );
-        playChime(880);
+        playChime(3);
       }
     } else {
       showLine(lines[lines.length - 1], 2200);
@@ -444,7 +658,7 @@ function interact() {
     if (!state.bedConfirm) {
       showLine(day.bedPrompt, 3000);
       state.bedConfirm = true;
-      playChime(440);
+      playChime(2);
     } else {
       sleep();
     }
@@ -455,7 +669,7 @@ function interact() {
 function sleep() {
   const day = currentDay();
   showLine(day.sleepLine, null);
-  playSleepTone(day.isLast); // ← passes isLast so day 6 resolves upward
+  playSleepTone(day.isLast, state.dayIndex);
   state.transitioning = true;
   setTimeout(() => {
     if (day.isLast) {
@@ -494,11 +708,9 @@ function showEnding() {
 }
 
 function update() {
-  if (state.transitioning || state.ended) return;
-
+  if (state.transitioning || state.ended || state.journalOpen) return;
   const energy = currentDay().energyLevel;
   const speed = (0.8 + energy * 1.6) * (TILE_SIZE / 20);
-
   let dx = 0,
     dy = 0;
   if (keys.has("arrowup") || keys.has("w")) {
@@ -517,9 +729,20 @@ function update() {
     dx += 1;
     state.player.dir = "right";
   }
-
   if (dx !== 0 || dy !== 0) {
     if (state.bedConfirm) state.bedConfirm = false;
+
+    // Fixed Trigger: Moving in ANY direction away from the bench triggers the play again prompt
+    if (state.benchSat && !state.benchDone && state.scene === "outside") {
+      state.benchDone = true;
+      state.textLocked = false;
+      showLine(
+        "if you're reading this and you know this kind of week — i hope you know it ends. not because someone fixes it for you, but because you get through it. the same way i did. one unglamorous day at a time. you’re not alone ♡ \n\nyou made it through. press R to play again.",
+        null,
+        true,
+      );
+      return;
+    }
     const nx = state.player.x + dx * speed;
     if (canStandAt(nx, state.player.y)) state.player.x = nx;
     const ny = state.player.y + dy * speed;
@@ -544,6 +767,7 @@ function update() {
   }
 }
 
+// TILE COLORS
 const TILE_COLORS = {
   0: "#9ca878",
   1: "#7d8a5e",
@@ -564,17 +788,20 @@ const TILE_COLORS = {
   21: "#9ca878",
   22: "#9ca878",
   23: "#6e7a52",
-  33: "#8a7a5a",
   27: "#9ca878",
+  33: "#8a7a5a",
+  35: "#9ca878",
+  36: "#9ca878",
+  37: "#9ca878",
+  38: "#c4b896",
 };
-
 const OUTSIDE_COLORS = {
   0: "#8c9968",
   1: "#6e7a52",
   5: "#9ca878",
   8: "#7d8a5e",
+  39: "#8c9968",
 };
-
 const BATHROOM_COLORS = {
   0: "#a8c0b0",
   1: "#7d9488",
@@ -585,7 +812,6 @@ const BATHROOM_COLORS = {
   28: "#a8c0b0",
   34: "#a8c0b0",
 };
-
 const KITCHEN_COLORS = {
   0: "#c4b896",
   1: "#8a7a5a",
@@ -594,8 +820,11 @@ const KITCHEN_COLORS = {
   30: "#c4b896",
   32: "#c4b896",
   31: "#c4b896",
+  4: "#dbe0b0",
+  38: "#c4b896",
 };
 
+// DRAW ROOM
 function drawRoom() {
   const grid = currentGrid();
   let palette = TILE_COLORS;
@@ -606,9 +835,8 @@ function drawRoom() {
   for (let row = 0; row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
       const tile = grid[row][col];
-      const x = col * TILE_SIZE;
-      const y = row * TILE_SIZE;
-
+      const x = col * TILE_SIZE,
+        y = row * TILE_SIZE;
       if (tile === 3) {
         drawFloorTile(x, y, 0, palette);
         drawPlant(x, y);
@@ -621,13 +849,13 @@ function drawRoom() {
         drawTree(x, y);
         continue;
       }
-
-      if (state.scene === "outside") {
-        drawOutsideTile(tile, x, y);
-      } else {
-        drawFloorTile(x, y, tile, palette);
+      if (tile === 39) {
+        drawFloorTile(x, y, 0, palette);
+        if (currentGrid()[row][col - 1] !== 39) drawBench(x, y);
+        continue;
       }
-
+      if (state.scene === "outside") drawOutsideTile(tile, x, y);
+      else drawFloorTile(x, y, tile, palette);
       if (tile === 1 && state.scene === "room") drawWallTexture(x, y, col, row);
       if (tile === 2) drawBed(x, y, col, row);
       if (tile === 4) drawWindow(x, y);
@@ -639,41 +867,43 @@ function drawRoom() {
       if (tile === 9) drawNightstand(x, y);
       if (tile === 27) drawBedsideOil(x, y);
       if (tile === 24) {
-        const isLeftHalf = grid[row][col - 1] !== 24;
-        const isTopHalf =
-          grid[row - 1] === undefined || grid[row - 1][col] !== 24;
-        drawTub(x, y, isLeftHalf, isTopHalf);
+        const iL = grid[row][col - 1] !== 24;
+        const iT = grid[row - 1] === undefined || grid[row - 1][col] !== 24;
+        drawTub(x, y, iL, iT);
       }
       if (tile === 34) drawToilet(x, y);
       if (tile === 26) drawCabinet(x, y);
       if (tile === 28) drawBathroomOil(x, y);
+      if (tile === 25) drawSink(x, y);
       if (tile === 10) drawDesk(x, y, "left");
       if (tile === 13) drawDesk(x, y, "center");
       if (tile === 17) drawDesk(x, y, "right");
+      if (tile === 35) drawJournalTable(x, y);
+      if (tile === 36) drawWorkbench(x, y, "left");
+      if (tile === 37) drawWorkbench(x, y, "right");
       if (tile === 20) drawCouch(x, y, "left");
       if (tile === 21) drawCouch(x, y, "right");
       if (tile === 22) {
-        const isLeftHalf = grid[row][col - 1] !== 22;
-        drawCoffeeTable(x, y, isLeftHalf ? "left" : "right");
+        const iL = grid[row][col - 1] !== 22;
+        drawCoffeeTable(x, y, iL ? "left" : "right");
       }
+      if (tile === 38) drawFruitBowl(x, y);
+      if (tile === 4 && state.scene === "kitchen") drawWindow(x, y);
       if (tile === 29) drawStove(x, y);
       if (tile === 30) drawCounter(x, y, "left");
       if (tile === 32) drawCounter(x, y, "right");
       if (tile === 31) {
-        const isBottomHalf =
-          grid[row + 1] === undefined || grid[row + 1][col] !== 31;
-        if (isBottomHalf) drawFridge(x, y);
+        const iB = grid[row + 1] === undefined || grid[row + 1][col] !== 31;
+        if (iB) drawFridge(x, y);
       }
     }
   }
 }
 
 function drawFloorTile(x, y, tile, palette) {
-  const colors = palette || TILE_COLORS;
-  const base = colors[tile] ?? colors[0];
+  const base = (palette || TILE_COLORS)[tile] ?? (palette || TILE_COLORS)[0];
   ctx.fillStyle = base;
   ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-
   if (tile === 0 || tile === 3) {
     ctx.strokeStyle = "rgba(110, 125, 75, 0.12)";
     ctx.lineWidth = 1;
@@ -691,41 +921,38 @@ function drawFloorTile(x, y, tile, palette) {
 }
 
 function drawWallTexture(x, y, col, row) {
-  ctx.strokeStyle = "rgba(90, 105, 60, 0.25)";
+  ctx.strokeStyle = "rgba(90,105,60,0.25)";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(x + TILE_SIZE / 2, y);
   ctx.lineTo(x + TILE_SIZE / 2, y + TILE_SIZE);
   ctx.stroke();
-
-  ctx.fillStyle = "rgba(255, 255, 255, 0.10)";
+  ctx.fillStyle = "rgba(255,255,255,0.10)";
   ctx.beginPath();
   ctx.arc(x + TILE_SIZE * 0.25, y + TILE_SIZE * 0.5, 2, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
   ctx.arc(x + TILE_SIZE * 0.75, y + TILE_SIZE * 0.5, 2, 0, Math.PI * 2);
   ctx.fill();
-
   if (row === ROWS - 1) {
-    ctx.fillStyle = "rgba(90, 105, 60, 0.28)";
+    ctx.fillStyle = "rgba(90,105,60,0.28)";
     ctx.fillRect(x, y, TILE_SIZE, 6);
   }
   if (row === 0) {
-    ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
     ctx.fillRect(x, y + TILE_SIZE - 4, TILE_SIZE, 4);
   }
 }
 
 function drawGrassTexture(x, y) {
-  ctx.strokeStyle = "rgba(140, 190, 165, 0.55)";
+  ctx.strokeStyle = "rgba(140,190,165,0.55)";
   ctx.lineWidth = 1.5;
-  const blades = [
+  for (const [x1, y1, x2, y2] of [
     [x + 5, y + TILE_SIZE - 3, x + 3, y + TILE_SIZE - 11],
     [x + 14, y + TILE_SIZE - 4, x + 16, y + TILE_SIZE - 13],
     [x + 24, y + TILE_SIZE - 3, x + 22, y + TILE_SIZE - 10],
     [x + 9, y + TILE_SIZE - 2, x + 10, y + TILE_SIZE - 7],
-  ];
-  for (const [x1, y1, x2, y2] of blades) {
+  ]) {
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
@@ -734,21 +961,18 @@ function drawGrassTexture(x, y) {
 }
 
 function drawOutsideTile(tile, x, y) {
-  const base = OUTSIDE_COLORS[tile] ?? OUTSIDE_COLORS[0];
-  ctx.fillStyle = base;
+  ctx.fillStyle = OUTSIDE_COLORS[tile] ?? OUTSIDE_COLORS[0];
   ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-
   if (tile === 0) drawGrassTexture(x, y);
   if (tile === 1) {
-    ctx.fillStyle = "rgba(140, 190, 165, 0.5)";
-    for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = "rgba(140,190,165,0.5)";
+    for (let i = 0; i < 4; i++)
       for (let j = 0; j < 3; j++) {
         ctx.beginPath();
         ctx.arc(x + 5 + i * 7, y + 6 + j * 9, 4, 0, Math.PI * 2);
         ctx.fill();
       }
-    }
-    ctx.fillStyle = "rgba(120, 175, 150, 0.4)";
+    ctx.fillStyle = "rgba(120,175,150,0.4)";
     for (let i = 0; i < 3; i++) {
       ctx.beginPath();
       ctx.arc(x + 9 + i * 9, y + 4, 3, 0, Math.PI * 2);
@@ -758,16 +982,268 @@ function drawOutsideTile(tile, x, y) {
   if (tile === 5) drawDoor(x, y);
 }
 
+function drawJournalTable(x, y) {
+  const S = TILE_SIZE / 20;
+  // small side table
+  ctx.fillStyle = "#a98fa3";
+  ctx.fillRect(x + 2 * S, y + 14 * S, TILE_SIZE - 4 * S, 3 * S);
+  ctx.fillStyle = "#bda3b6";
+  ctx.fillRect(x + 2 * S, y + 10 * S, TILE_SIZE - 4 * S, 5 * S);
+  ctx.fillStyle = "#a98fa3";
+  ctx.fillRect(x + 3 * S, y + 17 * S, 2.5 * S, 9 * S);
+  ctx.fillRect(x + TILE_SIZE - 5.5 * S, y + 17 * S, 2.5 * S, 9 * S);
+  // journal book on top
+  ctx.fillStyle = "#c98fa0";
+  ctx.fillRect(x + 4 * S, y - 2 * S, TILE_SIZE - 8 * S, 13 * S);
+  ctx.fillStyle = "#e0a8bc";
+  ctx.fillRect(x + 4 * S, y - 2 * S, TILE_SIZE - 8 * S, 2 * S);
+  // spine
+  ctx.fillStyle = "#b87090";
+  ctx.fillRect(x + 4 * S, y - 2 * S, 2.5 * S, 13 * S);
+  // lined pages peeking out
+  ctx.fillStyle = "#f5eff2";
+  ctx.fillRect(x + 7 * S, y - 1 * S, TILE_SIZE - 12 * S, 11 * S);
+  ctx.strokeStyle = "rgba(200,150,170,0.4)";
+  ctx.lineWidth = S * 0.6;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + 8 * S, y + (1.5 + i * 2) * S);
+    ctx.lineTo(x + TILE_SIZE - 6 * S, y + (1.5 + i * 2) * S);
+    ctx.stroke();
+  }
+  // small pen resting on top
+  ctx.fillStyle = "#7d8a5e";
+  ctx.fillRect(x + TILE_SIZE - 6 * S, y - 4 * S, 1.5 * S, 10 * S);
+  ctx.fillStyle = "#c4b896";
+  ctx.fillRect(x + TILE_SIZE - 6.2 * S, y + 5.5 * S, 2 * S, 2 * S);
+}
+
+function drawWorkbench(x, y, position) {
+  const S = TILE_SIZE / 20;
+  if (position !== "left") return;
+  const w = TILE_SIZE * 2;
+
+  // bench surface — deeper, more substantial
+  ctx.fillStyle = "#6a5440";
+  ctx.fillRect(x, y + 14 * S, w, 7 * S);
+  ctx.fillStyle = "#9a7d6a";
+  ctx.fillRect(x, y + 14 * S, w, 2 * S);
+  // wood grain
+  ctx.strokeStyle = "rgba(90,70,50,0.3)";
+  ctx.lineWidth = S * 0.5;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + 2 * S, y + (15.5 + i * 1.8) * S);
+    ctx.lineTo(x + w - 2 * S, y + (15.5 + i * 1.8) * S);
+    ctx.stroke();
+  }
+  // legs
+  ctx.fillStyle = "#5a4430";
+  ctx.fillRect(x + 2 * S, y + 21 * S, 3 * S, 7 * S);
+  ctx.fillRect(x + w - 5 * S, y + 21 * S, 3 * S, 7 * S);
+
+  // pegboard back wall — tools hanging
+  ctx.fillStyle = "#5a4a3a";
+  ctx.fillRect(x, y - 18 * S, w, 15 * S);
+  ctx.fillStyle = "#46382c";
+  ctx.fillRect(x, y - 18 * S, w, 1.5 * S);
+  // pegboard holes
+  ctx.fillStyle = "rgba(30,20,10,0.5)";
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 8; c++) {
+      ctx.beginPath();
+      ctx.arc(
+        x + (3 + c * 4.8) * S,
+        y + (-15 + r * 5) * S,
+        0.6 * S,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+  }
+
+  // hanging tools on pegboard
+  // screwdriver
+  ctx.fillStyle = "#cdb6a4";
+  ctx.fillRect(x + 3 * S, y - 14 * S, 1.5 * S, 8 * S);
+  ctx.fillStyle = "#e8842a";
+  ctx.fillRect(x + 2.5 * S, y - 14 * S, 2.5 * S, 4 * S);
+  ctx.fillStyle = "#9a7d6a";
+  ctx.fillRect(x + 3.2 * S, y - 6 * S, 0.8 * S, 2 * S);
+
+  // pliers
+  ctx.fillStyle = "#7d8a5e";
+  ctx.fillRect(x + 8 * S, y - 14 * S, 2 * S, 9 * S);
+  ctx.fillStyle = "#5a6e48";
+  ctx.fillRect(x + 7.5 * S, y - 14 * S, 3 * S, 3 * S);
+  ctx.fillStyle = "#7d8a5e";
+  ctx.fillRect(x + 9.5 * S, y - 12 * S, 1.5 * S, 7 * S);
+
+  // wire stripper / small tool
+  ctx.fillStyle = "#cdb6a4";
+  ctx.fillRect(x + 14 * S, y - 13 * S, 1.2 * S, 7 * S);
+  ctx.fillStyle = "#c44569";
+  ctx.fillRect(x + 13.5 * S, y - 13 * S, 2.2 * S, 3 * S);
+
+  // ruler hanging
+  ctx.fillStyle = "#e8d44a";
+  ctx.fillRect(x + 18 * S, y - 14 * S, 1.5 * S, 10 * S);
+  ctx.strokeStyle = "rgba(100,80,0,0.5)";
+  ctx.lineWidth = S * 0.4;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + 18 * S, y + (-13 + i * 2) * S);
+    ctx.lineTo(x + 19 * S, y + (-13 + i * 2) * S);
+    ctx.stroke();
+  }
+
+  // hook with extra wire coil
+  ctx.strokeStyle = "#aeb888";
+  ctx.lineWidth = 1.5 * S;
+  ctx.beginPath();
+  ctx.arc(x + 24 * S, y - 11 * S, 3 * S, 0, Math.PI * 1.5);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x + 24 * S, y - 8 * S, 2 * S, 0, Math.PI * 1.8);
+  ctx.stroke();
+
+  // PCB board on bench surface
+  ctx.fillStyle = "#2a4a2a";
+  ctx.fillRect(x + 2 * S, y + 4 * S, 16 * S, 11 * S);
+  ctx.fillStyle = "#3a5c3a";
+  ctx.fillRect(x + 2 * S, y + 4 * S, 16 * S, 1.5 * S);
+  // traces
+  ctx.strokeStyle = "rgba(180,220,100,0.55)";
+  ctx.lineWidth = S * 0.6;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + 4 * S, y + (6 + i * 3) * S);
+    ctx.lineTo(x + 14 * S, y + (6 + i * 3) * S);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.moveTo(x + 10 * S, y + 4 * S);
+  ctx.lineTo(x + 10 * S, y + 15 * S);
+  ctx.stroke();
+  // components
+  ctx.fillStyle = "#1a1a1a";
+  ctx.fillRect(x + 5 * S, y + 5.5 * S, 3 * S, 2 * S);
+  ctx.fillStyle = "#c98fa0";
+  ctx.fillRect(x + 9 * S, y + 6 * S, 2 * S, 1.5 * S);
+  ctx.fillStyle = "#aeb888";
+  ctx.fillRect(x + 12 * S, y + 5.5 * S, 3 * S, 3 * S);
+  ctx.fillStyle = "#e8842a";
+  ctx.beginPath();
+  ctx.arc(x + 4 * S, y + 11 * S, 1.2 * S, 0, Math.PI * 2);
+  ctx.fill();
+
+  // solder iron on its stand
+  ctx.fillStyle = "#9a7d6a";
+  ctx.fillRect(x + 19 * S, y + 10 * S, 3 * S, 5 * S);
+  ctx.fillStyle = "#dbe0b0";
+  ctx.fillRect(x + 19.5 * S, y + 3 * S, 2 * S, 8 * S);
+  ctx.fillStyle = "#5a6e48";
+  ctx.fillRect(x + 19.5 * S, y + 3 * S, 2 * S, 3 * S);
+  ctx.fillStyle = "#b89c89";
+  ctx.fillRect(x + 20 * S, y + 1 * S, 1 * S, 2.5 * S);
+  const mt = performance.now() / 1000;
+  ctx.strokeStyle = "rgba(220,180,130,0.6)";
+  ctx.lineWidth = S;
+  ctx.beginPath();
+  ctx.moveTo(x + 20.5 * S, y + 0.5 * S);
+  ctx.quadraticCurveTo(x + 22.5 * S, y - 2.5 * S, x + 20.5 * S, y - 5 * S);
+  ctx.stroke();
+
+  // multimeter
+  ctx.fillStyle = "#46583a";
+  ctx.fillRect(x + 23 * S, y + 5 * S, 9 * S, 10 * S);
+  ctx.fillStyle = "#aeb888";
+  ctx.fillRect(x + 24 * S, y + 6 * S, 7 * S, 5 * S);
+  ctx.fillStyle = "rgba(180,220,100,0.6)";
+  ctx.fillText = "";
+  ctx.fillStyle = "#7fc0a6";
+  ctx.fillRect(x + 25 * S, y + 7 * S, 2 * S, 1 * S);
+  ctx.fillStyle = "#c44569";
+  ctx.fillRect(x + 28 * S, y + 7 * S, 2 * S, 1 * S);
+  ctx.fillStyle = "#9ca878";
+  ctx.fillRect(x + 26 * S, y + 12 * S, 3 * S, 2 * S);
+  // probe wires
+  ctx.strokeStyle = "#c98fa0";
+  ctx.lineWidth = S;
+  ctx.beginPath();
+  ctx.moveTo(x + 25 * S, y + 15 * S);
+  ctx.quadraticCurveTo(x + 23 * S, y + 18 * S, x + 20 * S, y + 16 * S);
+  ctx.stroke();
+  ctx.strokeStyle = "#aeb888";
+  ctx.beginPath();
+  ctx.moveTo(x + 28 * S, y + 15 * S);
+  ctx.quadraticCurveTo(x + 30 * S, y + 18 * S, x + 32 * S, y + 16 * S);
+  ctx.stroke();
+
+  // loose wires on surface
+  ctx.strokeStyle = "#c44569";
+  ctx.lineWidth = 1.2 * S;
+  ctx.beginPath();
+  ctx.moveTo(x + 3 * S, y + 15 * S);
+  ctx.quadraticCurveTo(x + 8 * S, y + 12 * S, x + 13 * S, y + 15 * S);
+  ctx.stroke();
+  ctx.strokeStyle = "#aeb888";
+  ctx.beginPath();
+  ctx.moveTo(x + 14 * S, y + 16 * S);
+  ctx.quadraticCurveTo(x + 17 * S, y + 13 * S, x + 21 * S, y + 16 * S);
+  ctx.stroke();
+
+  // sticky note
+  ctx.fillStyle = "#f5e86a";
+  ctx.fillRect(x + 24 * S, y + 1 * S, 8 * S, 6 * S);
+  ctx.strokeStyle = "rgba(180,160,0,0.4)";
+  ctx.lineWidth = S * 0.5;
+  for (let i = 0; i < 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + 25 * S, y + (2.5 + i * 1.8) * S);
+    ctx.lineTo(x + 31 * S, y + (2.5 + i * 1.8) * S);
+    ctx.stroke();
+  }
+
+  // small tray with components — resistors, caps
+  ctx.fillStyle = "#7d6452";
+  ctx.fillRect(x + 3 * S, y + 17 * S, 12 * S, 4 * S);
+  ctx.fillStyle = "#46382c";
+  ctx.fillRect(x + 3 * S, y + 17 * S, 12 * S, 1 * S);
+  ctx.fillStyle = "#c98fa0";
+  ctx.fillRect(x + 4 * S, y + 18 * S, 2 * S, 1.5 * S);
+  ctx.fillStyle = "#aeb888";
+  ctx.fillRect(x + 7 * S, y + 18 * S, 2 * S, 1.5 * S);
+  ctx.fillStyle = "#e8842a";
+  ctx.fillRect(x + 10 * S, y + 18 * S, 2 * S, 1.5 * S);
+
+  // magnifying glass leaning against pegboard
+  ctx.strokeStyle = "#cdb6a4";
+  ctx.lineWidth = 1.5 * S;
+  ctx.beginPath();
+  ctx.arc(x + 35 * S, y + 8 * S, 4 * S, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(180,210,255,0.2)";
+  ctx.beginPath();
+  ctx.arc(x + 35 * S, y + 8 * S, 4 * S, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#cdb6a4";
+  ctx.lineWidth = 2 * S;
+  ctx.beginPath();
+  ctx.moveTo(x + 38 * S, y + 11 * S);
+  ctx.lineTo(x + 40 * S, y + 14 * S);
+  ctx.stroke();
+}
+
 function drawBed(x, y, col, row) {
   const S = TILE_SIZE / 20;
   const grid = currentGrid();
   const isLeftHalf = col === 0 || (grid[row] && grid[row][col - 1] !== 2);
   if (!isLeftHalf) return;
-
-  const w = TILE_SIZE * 2;
-  const h = TILE_SIZE * 2;
-  const lift = 22 * S;
-
+  const w = TILE_SIZE * 2,
+    h = TILE_SIZE * 2,
+    lift = 22 * S;
   ctx.fillStyle = "#cdb6a4";
   ctx.fillRect(x + 2 * S, y - lift, w - 4 * S, lift + 6 * S);
   ctx.fillStyle = "#b89c89";
@@ -778,23 +1254,19 @@ function drawBed(x, y, col, row) {
   ctx.fillRect(x + 2 * S, y - lift, w - 4 * S, 2.5 * S);
   ctx.fillStyle = "#9a7d6a";
   ctx.fillRect(x + 2 * S, y + 4 * S, w - 4 * S, 3 * S);
-
   ctx.fillStyle = "#cdb6a4";
   ctx.fillRect(x, y, w, h);
   ctx.fillStyle = "#b89c89";
   ctx.fillRect(x, y, 3 * S, h);
   ctx.fillRect(x + w - 3 * S, y, 3 * S, h);
-  ctx.fillStyle = "#b89c89";
   ctx.fillRect(x, y + h - 5 * S, w, 5 * S);
   ctx.fillStyle = "#a98a76";
   ctx.fillRect(x, y + h - 5 * S, w, 1.5 * S);
-
   ctx.fillStyle = "#f6cfe0";
   ctx.fillRect(x + 3 * S, y + 6 * S, w - 6 * S, h - 12 * S);
-
-  const pw = (w - 18 * S) / 2;
-  const ph = 12 * S;
-  const py2 = y + 8 * S;
+  const pw = (w - 18 * S) / 2,
+    ph = 12 * S,
+    py2 = y + 8 * S;
   for (let p = 0; p < 2; p++) {
     const px2 = x + 5 * S + p * (pw + 8 * S);
     ctx.fillStyle = "#e8c4d8";
@@ -805,10 +1277,10 @@ function drawBed(x, y, col, row) {
     ctx.globalAlpha = 0.7;
     ctx.fillRect(px2 + 2 * S, py2 + 1.5 * S, pw - 4 * S, 3 * S);
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = "rgba(217, 169, 181, 0.6)";
+    ctx.strokeStyle = "rgba(217,169,181,0.6)";
     ctx.lineWidth = 1.5 * S;
     ctx.strokeRect(px2 + 2 * S, py2 + 2 * S, pw - 4 * S, ph - 4 * S);
-    ctx.fillStyle = "rgba(217, 169, 181, 0.4)";
+    ctx.fillStyle = "rgba(217,169,181,0.4)";
     ctx.beginPath();
     ctx.arc(px2 + 2.5 * S, py2 + 2.5 * S, 1.5 * S, 0, Math.PI * 2);
     ctx.fill();
@@ -821,14 +1293,13 @@ function drawBed(x, y, col, row) {
     ctx.beginPath();
     ctx.arc(px2 + pw - 2.5 * S, py2 + ph - 2.5 * S, 1.5 * S, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(217, 169, 181, 0.3)";
+    ctx.strokeStyle = "rgba(217,169,181,0.3)";
     ctx.lineWidth = S;
     ctx.beginPath();
     ctx.moveTo(px2 + pw / 2, py2 + 2 * S);
     ctx.lineTo(px2 + pw / 2, py2 + ph - 2 * S);
     ctx.stroke();
   }
-
   const bTop = y + 8 * S + 12 * S + 2 * S;
   ctx.fillStyle = "#e9b8cb";
   ctx.fillRect(x + 3 * S, bTop, w - 6 * S, h - 5 * S - bTop + y);
@@ -836,9 +1307,8 @@ function drawBed(x, y, col, row) {
   ctx.fillRect(x + 3 * S, bTop, w - 6 * S, 3 * S);
   ctx.fillStyle = "#dba6bd";
   const bH = h - 5 * S - bTop + y;
-  for (let i = 1; i < 5; i++) {
+  for (let i = 1; i < 5; i++)
     ctx.fillRect(x + 3 * S + i * ((w - 6 * S) / 5), bTop, 1 * S, bH);
-  }
   ctx.fillRect(x + 3 * S, bTop + bH * 0.5, w - 6 * S, 1 * S);
 }
 
@@ -865,17 +1335,16 @@ function drawWindow(x, y) {
   ctx.lineTo(x + TILE_SIZE - 3 * S, y + TILE_SIZE / 2);
   ctx.stroke();
   ctx.strokeStyle = "#b89c89";
-  ctx.lineWidth = 1.5 * S;
   ctx.strokeRect(
     x + 1.5 * S,
     y + 1.5 * S,
     TILE_SIZE - 3 * S,
     TILE_SIZE - 3 * S,
   );
-  ctx.fillStyle = "rgba(232, 214, 236, 0.75)";
+  ctx.fillStyle = "rgba(232,214,236,0.75)";
   ctx.fillRect(x, y, 4 * S, TILE_SIZE);
   ctx.fillRect(x + TILE_SIZE - 4 * S, y, 4 * S, TILE_SIZE);
-  ctx.strokeStyle = "rgba(217, 169, 181, 0.4)";
+  ctx.strokeStyle = "rgba(217,169,181,0.4)";
   ctx.lineWidth = S;
   for (let i = 0; i < 2; i++) {
     ctx.beginPath();
@@ -923,30 +1392,28 @@ function drawDoor(x, y) {
 }
 
 function drawRug(x, y, row, col) {
-  const S = TILE_SIZE / 20;
-  const RUG_ROW = 7,
+  const S = TILE_SIZE / 20,
+    RUG_ROW = 7,
     RUG_COL = 2,
     RUG_W = 2,
     RUG_H = 2;
   if (row !== RUG_ROW || col !== RUG_COL) return;
-  const w = TILE_SIZE * RUG_W;
-  const h = TILE_SIZE * RUG_H;
+  const w = TILE_SIZE * RUG_W,
+    h = TILE_SIZE * RUG_H;
   ctx.fillStyle = "rgba(0,0,0,0.06)";
   ctx.fillRect(x + 1 * S, y + 1 * S, w, h);
   ctx.fillStyle = "#a9b58a";
   ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = "rgba(125, 138, 94, 0.15)";
-  for (let i = 0; i < RUG_H * 2; i++) {
+  ctx.fillStyle = "rgba(125,138,94,0.15)";
+  for (let i = 0; i < RUG_H * 2; i++)
     ctx.fillRect(x, y + i * (h / (RUG_H * 2)), w, (h / (RUG_H * 2)) * 0.5);
-  }
-  ctx.strokeStyle = "rgba(125, 138, 94, 0.35)";
+  ctx.strokeStyle = "rgba(125,138,94,0.35)";
   ctx.lineWidth = 1.5 * S;
   ctx.strokeRect(x + 3 * S, y + 3 * S, w - 6 * S, h - 6 * S);
-  ctx.strokeStyle = "rgba(125, 138, 94, 0.22)";
+  ctx.strokeStyle = "rgba(125,138,94,0.22)";
   ctx.lineWidth = 1 * S;
   ctx.strokeRect(x + 7 * S, y + 7 * S, w - 14 * S, h - 14 * S);
-  ctx.fillStyle = "rgba(125, 138, 94, 0.25)";
-  const dot = 1.5 * S;
+  ctx.fillStyle = "rgba(125,138,94,0.25)";
   for (const [cx2, cy2] of [
     [x + 5 * S, y + 5 * S],
     [x + w - 5 * S, y + 5 * S],
@@ -954,12 +1421,12 @@ function drawRug(x, y, row, col) {
     [x + w - 5 * S, y + h - 5 * S],
   ]) {
     ctx.beginPath();
-    ctx.arc(cx2, cy2, dot, 0, Math.PI * 2);
+    ctx.arc(cx2, cy2, 1.5 * S, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.fillStyle = "rgba(196, 156, 168, 0.18)";
   const mcx = x + w / 2,
     mcy = y + h / 2;
+  ctx.fillStyle = "rgba(196,156,168,0.18)";
   ctx.beginPath();
   ctx.moveTo(mcx, mcy - 6 * S);
   ctx.lineTo(mcx + 6 * S, mcy);
@@ -967,15 +1434,15 @@ function drawRug(x, y, row, col) {
   ctx.lineTo(mcx - 6 * S, mcy);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = "rgba(217, 169, 181, 0.5)";
+  ctx.strokeStyle = "rgba(217,169,181,0.5)";
   ctx.lineWidth = 1 * S;
   ctx.stroke();
 }
 
 function drawMirror(x, y) {
-  const S = TILE_SIZE / 20;
-  const lift = 28 * S;
-  ctx.fillStyle = "rgba(20, 21, 15, 0.18)";
+  const S = TILE_SIZE / 20,
+    lift = 28 * S;
+  ctx.fillStyle = "rgba(20,21,15,0.18)";
   ctx.beginPath();
   ctx.ellipse(
     x + TILE_SIZE / 2,
@@ -1002,9 +1469,9 @@ function drawMirror(x, y) {
   );
   ctx.fillStyle = "#b090d0";
   ctx.fillRect(x + TILE_SIZE / 2 - 1 * S, y + TILE_SIZE - 7 * S, 2 * S, 7 * S);
-  const frameCY = y + TILE_SIZE - 8 * S - lift / 2;
-  const frameRX = TILE_SIZE * 0.44;
-  const frameRY = lift / 2 + 3 * S;
+  const frameCY = y + TILE_SIZE - 8 * S - lift / 2,
+    frameRX = TILE_SIZE * 0.44,
+    frameRY = lift / 2 + 3 * S;
   ctx.fillStyle = "#a080c0";
   ctx.beginPath();
   ctx.ellipse(x + TILE_SIZE / 2, frameCY, frameRX, frameRY, 0, 0, Math.PI * 2);
@@ -1033,7 +1500,7 @@ function drawMirror(x, y) {
     Math.PI * 2,
   );
   ctx.fill();
-  ctx.fillStyle = "rgba(255, 245, 200, 0.12)";
+  ctx.fillStyle = "rgba(255,245,200,0.12)";
   ctx.beginPath();
   ctx.ellipse(
     x + TILE_SIZE / 2,
@@ -1072,8 +1539,8 @@ function drawMirror(x, y) {
 }
 
 function drawNightstand(x, y) {
-  const S = TILE_SIZE / 20;
-  const lift = 22 * S;
+  const S = TILE_SIZE / 20,
+    lift = 22 * S;
   ctx.fillStyle = "#a98fa3";
   ctx.fillRect(x + 1 * S, y + 1 * S, TILE_SIZE - 2 * S, 3 * S);
   ctx.fillStyle = "#cdb6c4";
@@ -1095,7 +1562,7 @@ function drawNightstand(x, y) {
   ctx.fillRect(x + 5 * S, y - lift + 1 * S, 6 * S, 2 * S);
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(x + 5 * S, y - lift + 6 * S, 6 * S, 5 * S);
-  ctx.strokeStyle = "rgba(127, 192, 166, 0.7)";
+  ctx.strokeStyle = "rgba(127,192,166,0.7)";
   ctx.lineWidth = S * 0.7;
   for (let i = 0; i < 3; i++) {
     ctx.beginPath();
@@ -1157,7 +1624,7 @@ function drawDesk(x, y, position) {
   ctx.lineTo(x + 7 * S, y + 5.5 * S);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = "rgba(70, 88, 58, 0.45)";
+  ctx.strokeStyle = "rgba(70,88,58,0.45)";
   ctx.lineWidth = S * 0.8;
   for (let i = 0; i < 3; i++) {
     ctx.beginPath();
@@ -1171,56 +1638,58 @@ function drawDesk(x, y, position) {
   ctx.fill();
   ctx.fillStyle = "#46583a";
   ctx.fillRect(x + TILE_SIZE / 2 - 2 * S, y + 11 * S, 4 * S, 1.5 * S);
-  const cx = x + TILE_SIZE;
+  const cx2 = x + TILE_SIZE;
   ctx.fillStyle = "#7d8a5e";
-  ctx.fillRect(cx + 1 * S, y + 18.5 * S, 17 * S, 4 * S);
+  ctx.fillRect(cx2 + 1 * S, y + 18.5 * S, 17 * S, 4 * S);
   ctx.fillStyle = "#9ca878";
-  for (let r = 0; r < 2; r++) {
-    for (let c = 0; c < 7; c++) {
+  for (let r = 0; r < 2; r++)
+    for (let c = 0; c < 7; c++)
       ctx.fillRect(
-        cx + (1.7 + c * 2.2) * S,
+        cx2 + (1.7 + c * 2.2) * S,
         y + (19 + r * 1.8) * S,
         1.7 * S,
         1.4 * S,
       );
-    }
-  }
-  ctx.fillStyle = "#9ca878";
-  ctx.fillRect(cx + 4 * S, y + 22.5 * S, 9 * S, 1.4 * S);
+  ctx.fillRect(cx2 + 4 * S, y + 22.5 * S, 9 * S, 1.4 * S);
   ctx.fillStyle = "#dbe0b0";
-  ctx.fillRect(cx + 2 * S, y + 11 * S, 13 * S, 7 * S);
+  ctx.fillRect(cx2 + 2 * S, y + 11 * S, 13 * S, 7 * S);
   ctx.fillStyle = "#cdb6a4";
-  ctx.fillRect(cx + 2 * S, y + 11 * S, 13 * S, 1 * S);
-  ctx.fillRect(cx + 8 * S, y + 11 * S, 1 * S, 7 * S);
-  ctx.strokeStyle = "rgba(110, 125, 75, 0.5)";
+  ctx.fillRect(cx2 + 2 * S, y + 11 * S, 13 * S, 1 * S);
+  ctx.fillRect(cx2 + 8 * S, y + 11 * S, 1 * S, 7 * S);
+  ctx.strokeStyle = "rgba(110,125,75,0.5)";
   ctx.lineWidth = S * 0.7;
   for (let i = 0; i < 3; i++) {
     ctx.beginPath();
-    ctx.moveTo(cx + 3 * S, y + (13 + i * 1.8) * S);
-    ctx.lineTo(cx + 7 * S, y + (13 + i * 1.8) * S);
+    ctx.moveTo(cx2 + 3 * S, y + (13 + i * 1.8) * S);
+    ctx.lineTo(cx2 + 7 * S, y + (13 + i * 1.8) * S);
     ctx.stroke();
   }
-  ctx.strokeStyle = "rgba(110, 125, 75, 0.7)";
+  ctx.strokeStyle = "rgba(110,125,75,0.7)";
   ctx.lineWidth = S * 0.8;
   ctx.beginPath();
-  ctx.moveTo(cx + 9.5 * S, y + 13 * S);
-  ctx.lineTo(cx + 12 * S, y + 13 * S);
-  ctx.lineTo(cx + 12 * S, y + 15 * S);
-  ctx.lineTo(cx + 10 * S, y + 15 * S);
+  ctx.moveTo(cx2 + 9.5 * S, y + 13 * S);
+  ctx.lineTo(cx2 + 12 * S, y + 13 * S);
+  ctx.lineTo(cx2 + 12 * S, y + 15 * S);
+  ctx.lineTo(cx2 + 10 * S, y + 15 * S);
   ctx.stroke();
   ctx.fillStyle = "#9a7d6a";
-  ctx.fillRect(cx + 16 * S, y + 15 * S, 3 * S, 7 * S);
+  ctx.fillRect(cx2 + 16 * S, y + 15 * S, 3 * S, 7 * S);
   ctx.fillStyle = "#dbe0b0";
-  ctx.fillRect(cx + 16.5 * S, y + 7 * S, 2 * S, 9 * S);
+  ctx.fillRect(cx2 + 16.5 * S, y + 7 * S, 2 * S, 9 * S);
   ctx.fillStyle = "#5a6e48";
-  ctx.fillRect(cx + 16.5 * S, y + 7 * S, 2 * S, 3 * S);
+  ctx.fillRect(cx2 + 16.5 * S, y + 7 * S, 2 * S, 3 * S);
   ctx.fillStyle = "#b89c89";
-  ctx.fillRect(cx + 17 * S, y + 4.5 * S, 1 * S, 3 * S);
-  ctx.strokeStyle = "rgba(220, 180, 130, 0.55)";
+  ctx.fillRect(cx2 + 17 * S, y + 4.5 * S, 1 * S, 3 * S);
+  ctx.strokeStyle = "rgba(220,180,130,0.55)";
   ctx.lineWidth = S;
   ctx.beginPath();
-  ctx.moveTo(cx + 17.5 * S, y + 3.5 * S);
-  ctx.quadraticCurveTo(cx + 19.5 * S, y + 0.5 * S, cx + 17.5 * S, y - 2.5 * S);
+  ctx.moveTo(cx2 + 17.5 * S, y + 3.5 * S);
+  ctx.quadraticCurveTo(
+    cx2 + 19.5 * S,
+    y + 0.5 * S,
+    cx2 + 17.5 * S,
+    y - 2.5 * S,
+  );
   ctx.stroke();
   const rx = x + TILE_SIZE * 2;
   ctx.fillStyle = "#dbe0b0";
@@ -1228,16 +1697,14 @@ function drawDesk(x, y, position) {
   ctx.fillStyle = "#c9c98a";
   ctx.fillRect(rx + 1 * S, y + 12 * S, 14 * S, 1 * S);
   ctx.fillStyle = "#9ca878";
-  for (let r = 0; r < 4; r++) {
-    for (let c = 0; c < 8; c++) {
+  for (let r = 0; r < 4; r++)
+    for (let c = 0; c < 8; c++)
       ctx.fillRect(
         rx + (2 + c * 1.5) * S,
         y + (13.5 + r * 1.8) * S,
         0.9 * S,
         0.9 * S,
       );
-    }
-  }
   ctx.strokeStyle = "#5a6e48";
   ctx.lineWidth = S * 0.8;
   ctx.beginPath();
@@ -1284,9 +1751,9 @@ function drawDesk(x, y, position) {
 function drawCouch(x, y, position) {
   const S = TILE_SIZE / 20;
   if (position !== "left") return;
-  const w = TILE_SIZE * 2;
-  const lift = 20 * S;
-  ctx.fillStyle = "rgba(20, 21, 15, 0.14)";
+  const w = TILE_SIZE * 2,
+    lift = 20 * S;
+  ctx.fillStyle = "rgba(20,21,15,0.14)";
   ctx.beginPath();
   ctx.ellipse(
     x + w / 2,
@@ -1337,7 +1804,7 @@ function drawCouch(x, y, position) {
   ctx.fillRect(x + 7 * S, y - 12 * S, 9 * S, 1.5 * S);
   ctx.fillStyle = "#c98fa0";
   ctx.fillRect(x + 7 * S, y - 12 * S, 1.5 * S, 7 * S);
-  ctx.strokeStyle = "rgba(217, 169, 181, 0.5)";
+  ctx.strokeStyle = "rgba(217,169,181,0.5)";
   ctx.lineWidth = S * 0.8;
   ctx.strokeRect(x + 8.5 * S, y - 10.5 * S, 6 * S, 4 * S);
   ctx.fillStyle = "#3a4a30";
@@ -1352,7 +1819,7 @@ function drawCoffeeTable(x, y, position) {
   const S = TILE_SIZE / 20;
   if (position !== "left") return;
   const w = TILE_SIZE * 2;
-  ctx.fillStyle = "rgba(20, 21, 15, 0.12)";
+  ctx.fillStyle = "rgba(20,21,15,0.12)";
   ctx.beginPath();
   ctx.ellipse(
     x + w / 2,
@@ -1376,7 +1843,7 @@ function drawCoffeeTable(x, y, position) {
   ctx.fillRect(x + 1 * S, y - 1 * S, w - 2 * S, 7 * S);
   ctx.fillStyle = "#b89c89";
   ctx.fillRect(x + 1 * S, y - 1 * S, w - 2 * S, 1.8 * S);
-  ctx.strokeStyle = "rgba(154, 125, 106, 0.28)";
+  ctx.strokeStyle = "rgba(154,125,106,0.28)";
   ctx.lineWidth = S * 0.6;
   for (let i = 0; i < 3; i++) {
     ctx.beginPath();
@@ -1385,22 +1852,21 @@ function drawCoffeeTable(x, y, position) {
     ctx.stroke();
   }
   const bookColors = ["#c98fa0", "#9ca878", "#a98fb8"];
-  const bookH = 2.5 * S;
   let bookY = y - 1 * S;
   for (let i = 0; i < 3; i++) {
-    bookY -= bookH + 0.5 * S;
+    bookY -= 2.5 * S + 0.5 * S;
     const bw = (12 - i * 1.5) * S;
     ctx.fillStyle = bookColors[i];
-    ctx.fillRect(x + 3 * S, bookY, bw, bookH);
+    ctx.fillRect(x + 3 * S, bookY, bw, 2.5 * S);
     ctx.fillStyle = "rgba(255,255,255,0.2)";
     ctx.fillRect(x + 3 * S, bookY, bw, 0.7 * S);
     ctx.fillStyle = "rgba(0,0,0,0.15)";
-    ctx.fillRect(x + 3 * S, bookY, 1.5 * S, bookH);
+    ctx.fillRect(x + 3 * S, bookY, 1.5 * S, 2.5 * S);
   }
   ctx.fillStyle = "#e0719a";
   ctx.fillRect(x + 8 * S, bookY - 2.5 * S, 1.5 * S, 3.5 * S);
-  const ix = x + w - 15 * S;
-  const iy = y - 0.5 * S;
+  const ix = x + w - 15 * S,
+    iy = y - 0.5 * S;
   ctx.fillStyle = "#7d6452";
   ctx.fillRect(ix, iy, 12 * S, 1.5 * S);
   ctx.fillStyle = "#9a7d6a";
@@ -1414,10 +1880,10 @@ function drawCoffeeTable(x, y, position) {
   ctx.arc(ix + 1 * S, iy - 9.5 * S, 1.2 * S, 0, Math.PI * 2);
   ctx.fill();
   const mt = performance.now() / 1000;
-  const d1 = Math.sin(mt * 0.55) * 2 * S;
-  const d2 = Math.sin(mt * 0.4 + 1.2) * 1.8 * S;
-  const d3 = Math.sin(mt * 0.32 + 2.5) * 1.4 * S;
-  ctx.strokeStyle = "rgba(232, 214, 236, 0.5)";
+  const d1 = Math.sin(mt * 0.55) * 2 * S,
+    d2 = Math.sin(mt * 0.4 + 1.2) * 1.8 * S,
+    d3 = Math.sin(mt * 0.32 + 2.5) * 1.4 * S;
+  ctx.strokeStyle = "rgba(232,214,236,0.5)";
   ctx.lineWidth = S * 1.2;
   ctx.lineCap = "round";
   ctx.beginPath();
@@ -1517,12 +1983,16 @@ function drawStove(x, y) {
   ctx.arc(kx, ky - 10 * S, 4.5 * S, 0.1 * Math.PI, 0.9 * Math.PI, true);
   ctx.stroke();
   const mt = performance.now() / 1000;
-  const d1 = Math.sin(mt * 0.7) * 1.5 * S;
-  ctx.strokeStyle = "rgba(203, 184, 216, 0.6)";
+  ctx.strokeStyle = "rgba(203,184,216,0.6)";
   ctx.lineWidth = 1.2 * S;
   ctx.beginPath();
   ctx.moveTo(kx, ky - 16 * S);
-  ctx.quadraticCurveTo(kx + d1, ky - 22 * S, kx, ky - 27 * S);
+  ctx.quadraticCurveTo(
+    kx + Math.sin(mt * 0.7) * 1.5 * S,
+    ky - 22 * S,
+    kx,
+    ky - 27 * S,
+  );
   ctx.stroke();
   ctx.fillStyle = "#f3e6f0";
   ctx.fillRect(x + 1 * S, y - 5 * S, 5 * S, 5 * S);
@@ -1538,7 +2008,7 @@ function drawCounter(x, y, position) {
   ctx.fillRect(x + 1 * S, y + 5 * S, w - 2 * S, TILE_SIZE - 5 * S);
   ctx.fillStyle = "#7d6452";
   ctx.fillRect(x + 1 * S, y + 5 * S, w - 2 * S, 2 * S);
-  ctx.strokeStyle = "rgba(125, 100, 82, 0.5)";
+  ctx.strokeStyle = "rgba(125,100,82,0.5)";
   ctx.lineWidth = S * 0.8;
   ctx.beginPath();
   ctx.moveTo(x + w / 2, y + 8 * S);
@@ -1604,8 +2074,8 @@ function drawCounter(x, y, position) {
 }
 
 function drawFridge(x, y) {
-  const S = TILE_SIZE / 20;
-  const lift = 38 * S;
+  const S = TILE_SIZE / 20,
+    lift = 38 * S;
   ctx.fillStyle = "rgba(20,21,15,0.12)";
   ctx.beginPath();
   ctx.ellipse(
@@ -1622,7 +2092,7 @@ function drawFridge(x, y) {
   ctx.fillRect(x + 2 * S, y + TILE_SIZE - lift, TILE_SIZE - 4 * S, lift);
   ctx.fillStyle = "#c9c98a";
   ctx.fillRect(x + 2 * S, y + TILE_SIZE - lift, TILE_SIZE - 4 * S, 2 * S);
-  ctx.strokeStyle = "rgba(154, 154, 100, 0.5)";
+  ctx.strokeStyle = "rgba(154,154,100,0.5)";
   ctx.lineWidth = S;
   ctx.beginPath();
   ctx.moveTo(x + 2 * S, y + TILE_SIZE - lift * 0.62);
@@ -1646,8 +2116,8 @@ function drawFridge(x, y) {
 }
 
 function drawToilet(x, y) {
-  const S = TILE_SIZE / 20;
-  const lift = 16 * S;
+  const S = TILE_SIZE / 20,
+    lift = 16 * S;
   ctx.fillStyle = "#e8e8e0";
   ctx.fillRect(x + 4 * S, y - lift, TILE_SIZE - 8 * S, lift - 4 * S);
   ctx.fillStyle = "#d4d4c8";
@@ -1720,8 +2190,8 @@ function drawBathroomDoor(x, y) {
 }
 
 function drawBedsideOil(x, y) {
-  const S = TILE_SIZE / 20;
-  const lift = 10 * S;
+  const S = TILE_SIZE / 20,
+    lift = 10 * S;
   ctx.fillStyle = "rgba(20,21,15,0.12)";
   ctx.beginPath();
   ctx.ellipse(
@@ -1776,8 +2246,8 @@ function drawTub(x, y, isLeftHalf, isTopHalf) {
   ctx.fillRect(x + 5 * S, y + 7 * S, w - 10 * S, h - 14 * S);
   ctx.fillStyle = "rgba(255,255,255,0.2)";
   ctx.fillRect(x + 5 * S, y + 7 * S, w - 10 * S, 2.5 * S);
-  const wt = performance.now() / 1000;
-  const ripple = Math.sin(wt * 1.2) * 0.5 * S;
+  const wt = performance.now() / 1000,
+    ripple = Math.sin(wt * 1.2) * 0.5 * S;
   ctx.strokeStyle = "rgba(255,255,255,0.35)";
   ctx.lineWidth = S * 0.8;
   for (let i = 0; i < 3; i++) {
@@ -1816,10 +2286,10 @@ function drawTub(x, y, isLeftHalf, isTopHalf) {
     Math.PI * 2,
   );
   ctx.fill();
-  ctx.fillStyle = "rgba(184, 212, 200, 0.7)";
+  ctx.fillStyle = "rgba(184,212,200,0.7)";
   for (let i = 0; i < 4; i++) {
-    const sx = x + w / 2 + 2 * S + i * 1.5 * S;
-    const sy = y - 8 * S + Math.sin(wt * 2 + i) * S;
+    const sx = x + w / 2 + 2 * S + i * 1.5 * S,
+      sy = y - 8 * S + Math.sin(wt * 2 + i) * S;
     ctx.beginPath();
     ctx.arc(sx, sy, 0.8 * S, 0, Math.PI * 2);
     ctx.fill();
@@ -1830,14 +2300,13 @@ function drawTub(x, y, isLeftHalf, isTopHalf) {
     [x + w - 5 * S, y + h - 3 * S],
     [x + 4 * S, y + h - 2 * S],
     [x + w - 6 * S, y + h - 2 * S],
-  ]) {
+  ])
     ctx.fillRect(lx, ly, 3 * S, 3 * S);
-  }
 }
 
 function drawSink(x, y) {
-  const S = TILE_SIZE / 20;
-  const lift = 16 * S;
+  const S = TILE_SIZE / 20,
+    lift = 16 * S;
   ctx.fillStyle = "#a8a8c0";
   ctx.fillRect(x + 6 * S, y - lift, TILE_SIZE - 12 * S, 7 * S);
   ctx.fillStyle = "#e8e8f3";
@@ -1859,13 +2328,13 @@ function drawSink(x, y) {
 }
 
 function drawCabinet(x, y) {
-  const S = TILE_SIZE / 20;
-  const lift = 24 * S;
+  const S = TILE_SIZE / 20,
+    lift = 24 * S;
   ctx.fillStyle = "#8a7060";
   ctx.fillRect(x + 1 * S, y - lift, TILE_SIZE - 2 * S, lift + 2 * S);
   ctx.fillStyle = "#b89c89";
   ctx.fillRect(x + 2 * S, y - lift + 1 * S, TILE_SIZE - 4 * S, lift - 1 * S);
-  ctx.strokeStyle = "rgba(154, 125, 106, 0.6)";
+  ctx.strokeStyle = "rgba(154,125,106,0.6)";
   ctx.lineWidth = S * 0.8;
   ctx.strokeRect(
     x + 3.5 * S,
@@ -1914,8 +2383,8 @@ function drawCabinet(x, y) {
 }
 
 function drawBathroomOil(x, y) {
-  const S = TILE_SIZE / 20;
-  const lift = 12 * S;
+  const S = TILE_SIZE / 20,
+    lift = 12 * S;
   ctx.fillStyle = "#9a7d6a";
   ctx.fillRect(x + 4 * S, y + 1 * S, TILE_SIZE - 8 * S, 2.5 * S);
   ctx.fillStyle = "rgba(20,21,15,0.12)";
@@ -1947,11 +2416,64 @@ function drawBathroomOil(x, y) {
   );
 }
 
-function drawTree(x, y) {
+function drawBench(x, y) {
   const S = TILE_SIZE / 20;
-  const cx = x + TILE_SIZE / 2;
-  const baseY = y + TILE_SIZE - 4 * S;
-  ctx.fillStyle = "rgba(140, 190, 165, 0.4)";
+  const w = TILE_SIZE * 2;
+
+  // shadow
+  ctx.fillStyle = "rgba(20,21,15,0.12)";
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + 22 * S, w * 0.38, 2 * S, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // legs — four visible, properly positioned
+  ctx.fillStyle = "#8a7060";
+  ctx.fillRect(x + 4 * S, y + 13 * S, 2 * S, 9 * S);
+  ctx.fillRect(x + w - 6 * S, y + 13 * S, 2 * S, 9 * S);
+  ctx.fillRect(x + 4 * S, y + 6 * S, 2 * S, 5 * S);
+  ctx.fillRect(x + w - 6 * S, y + 6 * S, 2 * S, 5 * S);
+
+  // cross bar between legs
+  ctx.fillStyle = "#7d6452";
+  ctx.fillRect(x + 6 * S, y + 18 * S, w - 12 * S, 1.5 * S);
+
+  // seat — three visible slats
+  const slatY = y + 11 * S;
+  const slatColors = ["#cdb6a4", "#c4ae9c", "#bba494"];
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = slatColors[i];
+    ctx.fillRect(x + 2 * S, slatY + i * 2.2 * S, w - 4 * S, 1.8 * S);
+    // slat highlight
+    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    ctx.fillRect(x + 2 * S, slatY + i * 2.2 * S, w - 4 * S, 0.6 * S);
+  }
+
+  // backrest posts
+  ctx.fillStyle = "#8a7060";
+  ctx.fillRect(x + 4 * S, y + 1 * S, 2 * S, 11 * S);
+  ctx.fillRect(x + w - 6 * S, y + 1 * S, 2 * S, 11 * S);
+
+  // backrest — two slats
+  ctx.fillStyle = "#cdb6a4";
+  ctx.fillRect(x + 2 * S, y + 2 * S, w - 4 * S, 1.8 * S);
+  ctx.fillStyle = "#c4ae9c";
+  ctx.fillRect(x + 2 * S, y + 5 * S, w - 4 * S, 1.8 * S);
+  // highlights
+  ctx.fillStyle = "rgba(255,255,255,0.18)";
+  ctx.fillRect(x + 2 * S, y + 2 * S, w - 4 * S, 0.6 * S);
+  ctx.fillRect(x + 2 * S, y + 5 * S, w - 4 * S, 0.6 * S);
+
+  // arm rests
+  ctx.fillStyle = "#9a7d6a";
+  ctx.fillRect(x + 2 * S, y + 8 * S, 4 * S, 1.5 * S);
+  ctx.fillRect(x + w - 6 * S, y + 8 * S, 4 * S, 1.5 * S);
+}
+
+function drawTree(x, y) {
+  const S = TILE_SIZE / 20,
+    cx = x + TILE_SIZE / 2,
+    baseY = y + TILE_SIZE - 4 * S;
+  ctx.fillStyle = "rgba(140,190,165,0.4)";
   ctx.beginPath();
   ctx.ellipse(cx, baseY + 1 * S, 10 * S, 2.5 * S, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -1973,7 +2495,7 @@ function drawTree(x, y) {
   ctx.beginPath();
   ctx.ellipse(cx, baseY - 26 * S, 7 * S, 6 * S, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "rgba(140, 190, 165, 0.4)";
+  ctx.fillStyle = "rgba(140,190,165,0.4)";
   for (let i = 0; i < 6; i++) {
     const ang = (Math.PI * 2 * i) / 6;
     ctx.beginPath();
@@ -1989,20 +2511,18 @@ function drawTree(x, y) {
 }
 
 function drawPlant(x, y) {
-  const S = TILE_SIZE / 20;
-  const stage = PLANT_STAGES[state.plantStage];
-  const cx = x + TILE_SIZE / 2;
-  const baseY = y + TILE_SIZE - 4 * S;
-  const energy = state.started ? currentDay().energyLevel : 1;
-  const wilt = energy;
+  const S = TILE_SIZE / 20,
+    stage = PLANT_STAGES[state.plantStage],
+    cx = x + TILE_SIZE / 2,
+    baseY = y + TILE_SIZE - 4 * S;
+  const energy = state.started ? currentDay().energyLevel : 1,
+    wilt = energy;
   const wiltColor =
-    wilt < 0.5 ? `rgba(140, 160, 120, ${0.6 + wilt * 0.4})` : stage.leafColor;
-
+    wilt < 0.5 ? `rgba(140,160,120,${0.6 + wilt * 0.4})` : stage.leafColor;
   ctx.fillStyle = "#e6d6e2";
   ctx.beginPath();
   ctx.ellipse(cx, baseY + 1 * S, 11 * S, 3 * S, 0, 0, Math.PI * 2);
   ctx.fill();
-
   ctx.fillStyle = stage.potColor;
   ctx.beginPath();
   ctx.moveTo(cx - 10 * S, baseY - 9 * S);
@@ -2021,12 +2541,10 @@ function drawPlant(x, y) {
   ctx.lineTo(cx - 8 * S, baseY);
   ctx.closePath();
   ctx.fill();
-
   ctx.fillStyle = "#7a6052";
   ctx.fillRect(cx - 9 * S, baseY - 9 * S, 18 * S, 2 * S);
-
-  const stemH = 13 * S * stage.size;
-  const stemLean = (1 - wilt) * 8 * S;
+  const stemH = 13 * S * stage.size,
+    stemLean = (1 - wilt) * 8 * S;
   ctx.strokeStyle = wiltColor;
   ctx.lineWidth = 2 * S;
   ctx.beginPath();
@@ -2038,13 +2556,12 @@ function drawPlant(x, y) {
     baseY - 9 * S - stemH,
   );
   ctx.stroke();
-
-  const stemTipX = cx + stemLean;
-  const stemTipY = baseY - 9 * S - stemH;
-  const r = 13 * S * stage.size;
-  const wiltDroop = (1 - wilt) * r * 0.6;
-  const top = stemTipY - r * 0.6 * wilt;
-  const wiltAngle = (1 - wilt) * 0.7;
+  const stemTipX = cx + stemLean,
+    stemTipY = baseY - 9 * S - stemH;
+  const r = 13 * S * stage.size,
+    wiltDroop = (1 - wilt) * r * 0.6,
+    top = stemTipY - r * 0.6 * wilt,
+    wiltAngle = (1 - wilt) * 0.7;
   const positions = [
     [0, -r * 0.2 + wiltDroop, r, r * 0.7],
     [-r * 0.6, r * 0.25 + wiltDroop, r * 0.55, r * 0.38],
@@ -2092,7 +2609,6 @@ function drawPlant(x, y) {
     ctx.beginPath();
     ctx.arc(stemTipX, top - r * 0.5, 2 * S, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#fbd4e3";
     ctx.beginPath();
     ctx.arc(stemTipX - r * 0.7, top - r * 0.15, 2.5 * S, 0, Math.PI * 2);
     ctx.fill();
@@ -2104,6 +2620,157 @@ function drawPlant(x, y) {
   }
 }
 
+function drawFruitBowl(x, y) {
+  const S = TILE_SIZE / 20;
+  const cx = x + TILE_SIZE / 2;
+  const baseY = y + TILE_SIZE - 6 * S;
+
+  // bowl
+  ctx.fillStyle = "#cdb6a4";
+  ctx.beginPath();
+  ctx.ellipse(cx, baseY, 11 * S, 4 * S, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#b89c89";
+  ctx.beginPath();
+  ctx.ellipse(cx, baseY, 11 * S, 2.5 * S, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // apple (red)
+  ctx.fillStyle = "#c44040";
+  ctx.beginPath();
+  ctx.arc(cx - 3 * S, baseY - 7 * S, 4 * S, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#a03030";
+  ctx.lineWidth = S * 0.5;
+  ctx.beginPath();
+  ctx.arc(cx - 3 * S, baseY - 7 * S, 4 * S, 0.2, 0.8);
+  ctx.stroke();
+  ctx.strokeStyle = "#5a3a1a";
+  ctx.lineWidth = S;
+  ctx.beginPath();
+  ctx.moveTo(cx - 3 * S, baseY - 11 * S);
+  ctx.lineTo(cx - 2 * S, baseY - 13 * S);
+  ctx.stroke();
+
+  // orange
+  ctx.fillStyle = "#e8842a";
+  ctx.beginPath();
+  ctx.arc(cx + 5 * S, baseY - 5 * S, 3.5 * S, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#c86820";
+  ctx.lineWidth = S * 0.5;
+  ctx.beginPath();
+  ctx.arc(cx + 5 * S, baseY - 5 * S, 3.5 * S, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // banana (yellow curve)
+  ctx.strokeStyle = "#e8d44a";
+  ctx.lineWidth = 3 * S;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(cx - 8 * S, baseY - 10 * S);
+  ctx.quadraticCurveTo(cx - 2 * S, baseY - 14 * S, cx + 2 * S, baseY - 10 * S);
+  ctx.stroke();
+  ctx.lineCap = "butt";
+
+  // pineapple (yellow body, green top)
+  ctx.fillStyle = "#e8c84a";
+  ctx.beginPath();
+  ctx.ellipse(cx + 1 * S, baseY - 10 * S, 2.5 * S, 4 * S, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#3a7a3a";
+  ctx.beginPath();
+  ctx.moveTo(cx + 1 * S, baseY - 14 * S);
+  ctx.lineTo(cx - 1 * S, baseY - 17 * S);
+  ctx.moveTo(cx + 1 * S, baseY - 14 * S);
+  ctx.lineTo(cx + 1 * S, baseY - 18 * S);
+  ctx.moveTo(cx + 1 * S, baseY - 14 * S);
+  ctx.lineTo(cx + 3 * S, baseY - 17 * S);
+  ctx.stroke();
+}
+
+// CLUTTER
+function drawClutter() {
+  const S = TILE_SIZE / 20;
+  if (state.scene === "room") {
+    // hair tie on the floor near the bed
+    ctx.strokeStyle = "rgba(217, 169, 181, 0.7)";
+    ctx.lineWidth = 2 * S;
+    ctx.beginPath();
+    ctx.arc(
+      11 * TILE_SIZE + 18 * S,
+      6 * TILE_SIZE + 10 * S,
+      3 * S,
+      0,
+      Math.PI * 2,
+    );
+    ctx.stroke();
+    // small stack of folded laundry near the couch
+    ctx.fillStyle = "#cbb8d8";
+    ctx.fillRect(3 * TILE_SIZE + 5 * S, 5 * TILE_SIZE + 20 * S, 14 * S, 6 * S);
+    ctx.fillStyle = "#b89cc4";
+    ctx.fillRect(3 * TILE_SIZE + 5 * S, 5 * TILE_SIZE + 20 * S, 14 * S, 2 * S);
+    // a single dropped sock near the bed
+    ctx.fillStyle = "#9ca878";
+    ctx.beginPath();
+    ctx.ellipse(
+      10 * TILE_SIZE + 6 * S,
+      6 * TILE_SIZE + 26 * S,
+      5 * S,
+      2.5 * S,
+      0.3,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+    // small framed photo leaning against the wall near the desk
+    ctx.fillStyle = "#cdb6a4";
+    ctx.fillRect(5 * TILE_SIZE + 2 * S, 2 * TILE_SIZE + 14 * S, 10 * S, 12 * S);
+    ctx.fillStyle = "#e8e0f0";
+    ctx.fillRect(5 * TILE_SIZE + 4 * S, 2 * TILE_SIZE + 16 * S, 6 * S, 8 * S);
+    // period stain on bed — day 2 faint, day 3 most visible, fades day 4, gone day 5+
+    const dayIdx = state.dayIndex;
+    if (dayIdx >= 1 && dayIdx <= 3) {
+      const opacity = dayIdx === 1 ? 0.55 : dayIdx === 2 ? 0.85 : 0.25;
+      ctx.fillStyle = `rgba(180, 20, 40, ${opacity})`;
+      ctx.beginPath();
+      ctx.ellipse(
+        11 * TILE_SIZE + TILE_SIZE,
+        8 * TILE_SIZE + 10 * S,
+        6 * S,
+        4 * S,
+        0.1,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+  }
+  if (state.scene === "bathroom") {
+    ctx.fillStyle = "#a8c0b8";
+    ctx.fillRect(1 * TILE_SIZE + 4 * S, 4 * TILE_SIZE + 2 * S, 18 * S, 6 * S);
+    ctx.fillStyle = "#94aca4";
+    ctx.fillRect(1 * TILE_SIZE + 4 * S, 4 * TILE_SIZE + 2 * S, 18 * S, 2 * S);
+    ctx.fillStyle = "#cbb8d8";
+    ctx.globalAlpha = 0.5;
+    ctx.fillRect(2 * TILE_SIZE, 4 * TILE_SIZE + 12 * S, 30 * S, 12 * S);
+    ctx.globalAlpha = 1;
+  }
+  if (state.scene === "kitchen") {
+    ctx.fillStyle = "#9ca878";
+    ctx.fillRect(8 * TILE_SIZE + 2 * S, 3 * TILE_SIZE + 6 * S, 5 * S, 14 * S);
+    ctx.fillStyle = "#8c9968";
+    ctx.fillRect(8 * TILE_SIZE + 2 * S, 3 * TILE_SIZE + 6 * S, 5 * S, 3 * S);
+    ctx.fillStyle = "#d9a9b5";
+    ctx.fillRect(3 * TILE_SIZE + 4 * S, 24 * S, 8 * S, 6 * S);
+    ctx.fillStyle = "#8ec6ae";
+    ctx.beginPath();
+    ctx.ellipse(3 * TILE_SIZE + 8 * S, 20 * S, 6 * S, 8 * S, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// PLAYER
 function drawPlayer() {
   const { x, y, dir } = state.player;
   const S = TILE_SIZE / 20;
@@ -2117,23 +2784,38 @@ function drawPlayer() {
     keys.has("a") ||
     keys.has("arrowright") ||
     keys.has("d");
-
-  const bobSpeed = 6 + energy * 10;
-  const bobAmount = (1 + energy * 1.5) * S;
+  const bobSpeed = 6 + energy * 10,
+    bobAmount = (1 + energy * 1.5) * S;
   const t = performance.now() / (200 / bobSpeed);
   const bob = moving ? Math.sin(t) * bobAmount : 0;
   const walkFrame = moving ? (Math.sin(t) > 0 ? 1 : -1) : 0;
   const squish = 1 - (1 - energy) * 0.12;
-  const w = PLAYER_SIZE;
-  const h = PLAYER_SIZE * squish;
-  const top = y + (PLAYER_SIZE - h) + bob;
+  const w = PLAYER_SIZE,
+    h = PLAYER_SIZE * squish,
+    top = y + (PLAYER_SIZE - h) + bob;
 
-  const SKIN = "#f0d9b8",
-    SHADOW = "#dcc09e",
+  // skin tone shifts with energy — pale on day 2/3, normal on good days
+  const skinBase =
+    energy < 0.2
+      ? { skin: "#ddc8a8", shadow: "#c4a888", blush: "rgba(200,120,140,0.2)" }
+      : energy < 0.4
+        ? {
+            skin: "#e6d0b0",
+            shadow: "#ccb090",
+            blush: "rgba(220,140,160,0.28)",
+          }
+        : {
+            skin: "#f0d9b8",
+            shadow: "#dcc09e",
+            blush: "rgba(243,166,193,0.38)",
+          };
+
+  const SKIN = skinBase.skin,
+    SHADOW = skinBase.shadow,
     HAIR = "#1c1a16",
     DRESS = "#1c1a16";
 
-  ctx.fillStyle = "rgba(20, 21, 15, 0.22)";
+  ctx.fillStyle = "rgba(20,21,15,0.22)";
   ctx.beginPath();
   ctx.ellipse(
     x + w / 2,
@@ -2145,17 +2827,16 @@ function drawPlayer() {
     Math.PI * 2,
   );
   ctx.fill();
-
-  const headD = w * 0.62;
-  const headX = x + (w - headD) / 2;
-  const headY = top - h * 0.22;
-  const bodyTop = headY + headD * 0.86;
-  const bodyH = top + h - bodyTop;
-  const bodyW = w * 0.66;
-  const bodyX = x + (w - bodyW) / 2;
+  const headD = w * 0.62,
+    headX = x + (w - headD) / 2,
+    headY = top - h * 0.22;
+  const bodyTop = headY + headD * 0.86,
+    bodyH = top + h - bodyTop,
+    bodyW = w * 0.66,
+    bodyX = x + (w - bodyW) / 2;
   const legW = bodyW * 0.3,
-    legH = 4 * S;
-  const legOff = walkFrame * 1.2 * S;
+    legH = 4 * S,
+    legOff = walkFrame * 1.2 * S;
 
   ctx.fillStyle = SKIN;
   ctx.fillRect(
@@ -2202,7 +2883,6 @@ function drawPlayer() {
   ctx.fill();
   ctx.fillStyle = SKIN;
   ctx.fillRect(bodyX + bodyW * 0.5 - 2 * S, bodyTop, 4 * S, 1.5 * S);
-
   ctx.fillStyle = DRESS;
   ctx.fillRect(bodyX - 2 * S, bodyTop + 1 * S, 2.5 * S, bodyH * 0.5);
   ctx.fillRect(bodyX + bodyW - 0.5 * S, bodyTop + 1 * S, 2.5 * S, bodyH * 0.5);
@@ -2265,14 +2945,14 @@ function drawPlayer() {
       headD + 2 * S,
       headD * 0.28,
     );
-    const fY = headY + headD * 0.36;
-    const fW = (headD + 2 * S) / 6;
+    const fY = headY + headD * 0.36,
+      fW = (headD + 2 * S) / 6;
     for (let i = 0; i < 6; i++) {
       if (i % 2 === 0)
         ctx.fillRect(headX - 1 * S + i * fW, fY, fW, headD * 0.05);
     }
-    const eyeY = headY + headD * 0.52;
-    const eyeSize = 1.6 * S;
+    const eyeY = headY + headD * 0.52,
+      eyeSize = 1.6 * S;
     ctx.fillStyle = HAIR;
     let e1x, e2x;
     if (dir === "down") {
@@ -2298,7 +2978,35 @@ function drawPlayer() {
     }
     ctx.fillRect(e1x, eyeY, eyeSize, eyeSize);
     ctx.fillRect(e2x, eyeY, eyeSize, eyeSize);
-    ctx.fillStyle = "rgba(243, 166, 193, 0.38)";
+
+    // under-eye shading on low energy days
+    if (energy < 0.4) {
+      ctx.fillStyle = `rgba(80, 40, 60, ${0.18 + (0.4 - energy) * 0.3})`;
+      ctx.beginPath();
+      ctx.ellipse(
+        e1x + eyeSize / 2,
+        eyeY + eyeSize + 1.2 * S,
+        eyeSize * 0.9,
+        eyeSize * 0.5,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(
+        e2x + eyeSize / 2,
+        eyeY + eyeSize + 1.2 * S,
+        eyeSize * 0.9,
+        eyeSize * 0.5,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+
+    ctx.fillStyle = skinBase.blush;
     const br = headD * 0.07;
     if (dir === "down") {
       ctx.beginPath();
@@ -2346,7 +3054,7 @@ function drawTint() {
 
 function drawFade() {
   if (!state.transitioning && !state.ended) return;
-  ctx.fillStyle = "rgba(20, 21, 15, 1)";
+  ctx.fillStyle = "rgba(20,21,15,1)";
   ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
 }
 
@@ -2368,8 +3076,8 @@ function drawTitleScreen() {
   ctx.fillStyle = "#4a6b58";
   ctx.globalAlpha = 0.5;
   for (let i = 0; i < petals.length; i++) {
-    const [pxF, pyF] = petals[i];
-    const drift = Math.sin(t * 0.6 + i) * 4 * S;
+    const [pxF, pyF] = petals[i],
+      drift = Math.sin(t * 0.6 + i) * 4 * S;
     ctx.beginPath();
     ctx.ellipse(
       pxF * LOGICAL_W,
@@ -2384,8 +3092,8 @@ function drawTitleScreen() {
   }
   ctx.globalAlpha = 1;
   const cx = LOGICAL_W / 2,
-    cy = LOGICAL_H / 2 - 50 * S;
-  const sway = Math.sin(t * 0.8) * 3 * S;
+    cy = LOGICAL_H / 2 - 50 * S,
+    sway = Math.sin(t * 0.8) * 3 * S;
   ctx.fillStyle = "#d9a9b5";
   ctx.fillRect(cx - 14 * S, cy + 20 * S, 28 * S, 15 * S);
   ctx.fillStyle = "#c98fa0";
@@ -2444,7 +3152,11 @@ function drawTitleScreen() {
   ctx.fillText("iron bloom", cx, LOGICAL_H / 2 + 44 * S);
   ctx.font = `${8 * S}px PixelFont, monospace`;
   ctx.fillStyle = "#cbb8d8";
-  ctx.fillText("six days, one small plant", cx, LOGICAL_H / 2 + 70 * S);
+  ctx.fillText(
+    "water the plant. rest the body. repeat.",
+    cx,
+    LOGICAL_H / 2 + 70 * S,
+  );
   ctx.fillStyle = "#9c8aac";
   if (Math.sin(t * 2) > 0)
     ctx.fillText("press any key or tap to begin", cx, LOGICAL_H - 16 * S);
@@ -2462,6 +3174,7 @@ function render() {
     return;
   }
   drawRoom();
+  drawClutter();
   drawPlayer();
   drawTint();
   drawFade();
@@ -2479,7 +3192,6 @@ function startLoop() {
   loopStarted = true;
   loop();
 }
-
 if (document.fonts && document.fonts.load) {
   document.fonts.load("10px PixelFont").then(startLoop).catch(startLoop);
   setTimeout(startLoop, 500);
