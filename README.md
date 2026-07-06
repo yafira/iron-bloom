@@ -12,17 +12,12 @@ Made with vanilla JavaScript and Vite. No dependencies, no frameworks, no engine
 
 ## screenshots
 
-![title screen](/assets/01-title.png)
+|                                                      |                                                  |                                                                |
+| ---------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
+| ![title screen](/public/screenshots/01-title.png)    | ![day one — the bedroom](/public/screenshots/02-room.png) | ![the journal](/public/screenshots/03-journal.png)    |
+| ![day three — the bathroom](/public/screenshots/04-broom.png)   | ![the workbench](/public/screenshots/05-kitchen.png)   | ![day six — outside](/public/screenshots/06-outside.png)                  |
 
-![day one — the bedroom](/assets/02-room.png)
 
-![the journal](/assets/03-journal.png)
-
-![day three — the bathroom](/assets/04-broom.png)
-
-![the workbench](/assets/05-kitchen.png)
-
-![day six — outside](/assets/06-outside.png)
 
 ---
 
