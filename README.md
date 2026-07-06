@@ -1,6 +1,6 @@
 # iron bloom
 
-> *water the plant. rest the body. repeat.*
+> _water the plant. rest the body. repeat._
 
 A short cozy RPG about six days inside a body that fights you every month. Walk slowly on the bad days. Tend the plant. Read the journal. Go outside when you're ready.
 
@@ -10,7 +10,21 @@ Made with vanilla JavaScript and Vite. No dependencies, no frameworks, no engine
 
 ---
 
-## about
+## screenshots
+
+![title screen](/assets/01-title.png)
+
+![day one — the bedroom](/assets/02-room.png)
+
+![the journal](/assets/03-journal.png)
+
+![day three — the bathroom](/assets/04-broom.png)
+
+![the workbench](/assets/05-kitchen.png)
+
+![day six — outside](/assets/06-outside.png)
+
+---
 
 Iron Bloom is a game poem about living with heavy periods, anemia, chronic fatigue, and everything that comes with it. The idea came to me sitting in an infusion chair getting iron put back into my body.
 
@@ -26,19 +40,19 @@ This game is rooted in real conditions that affect millions of people who menstr
 
 **Heavy menstrual bleeding (menorrhagia)**
 Heavy menstrual bleeding affects up to 1 in 3 premenopausal people. About 1 in 5 report periods that interfere with daily life. The American College of Obstetricians and Gynecologists defines it as excessive menstrual bleeding that negatively impacts physical, social, emotional, and material quality of life — not just a number on a chart.
-*Source: American College of Obstetricians and Gynecologists (ACOG), [Heavy Menstrual Bleeding FAQ](https://www.acog.org/womens-health/faqs/heavy-menstrual-bleeding), updated 2021; Yale Medicine*
+_Source: American College of Obstetricians and Gynecologists (ACOG), [Heavy Menstrual Bleeding FAQ](https://www.acog.org/womens-health/faqs/heavy-menstrual-bleeding), updated 2021; Yale Medicine_
 
 **Iron-deficiency anemia**
 Heavy periods are the single most common cause of iron-deficiency anemia in people of reproductive age. Heavy bleeding can strip 30–40mg of iron from the body each month — well above what diet alone can replace. Around 60% of those with heavy periods may develop anemia if blood loss goes untreated. A normal ferritin level is at least 12 µg/L. Many people are walking around at a 4.
-*Source: CDC, [Heavy Menstrual Bleeding](https://www.cdc.gov/ncbddd/blooddisorders/women/menorrhagia.html), reviewed 2023; Cleveland Clinic, Menorrhagia, 2023; Mira Fertility / miracare.com, 2026*
+_Source: CDC, [Heavy Menstrual Bleeding](https://www.cdc.gov/ncbddd/blooddisorders/women/menorrhagia.html), reviewed 2023; Cleveland Clinic, Menorrhagia, 2023; Mira Fertility / miracare.com, 2026_
 
 **Chronic fatigue and brain fog**
 Anemia directly causes fatigue, brain fog, difficulty concentrating, shortness of breath, and dizziness. These are not character flaws or laziness. They are symptoms of a body running low on something essential. People with heavy menstrual bleeding are over four times more likely to report feeling tired or short of breath during their period.
-*Source: Sinharoy et al., The Lancet Global Health, October 2023 — multinational study across 10 cities, 4,828 participants*
+_Source: Sinharoy et al., The Lancet Global Health, October 2023 — multinational study across 10 cities, 4,828 participants_
 
 **The emotional weight**
 Heavy menstrual bleeding has been shown to negatively affect psychological state, energy, work productivity, social relationships, and daily functioning. The WHO recognizes iron-deficiency anemia as a significant public health concern with direct impact on cognitive and physical health, including the ability to participate fully in school and work.
-*Source: WHO Vitamin and Mineral Nutrition Information System; ACOG Committee Opinion, 2019; The Lancet Global Health, 2023*
+_Source: WHO Vitamin and Mineral Nutrition Information System; ACOG Committee Opinion, 2019; The Lancet Global Health, 2023_
 
 **If this is your experience:** talk to a doctor about ferritin testing, iron infusions, and treatment options. You deserve more than being told it's normal.
 
@@ -50,7 +64,6 @@ Heavy menstrual bleeding has been shown to negatively affect psychological state
 - **Space / Enter** to interact with objects
 - **R** to restart
 - Touch controls supported on mobile
-- Gameplay: ~5-10mins
 
 Walk up to objects and press interact. Some objects have follow-up text if you visit them again. The journal opens as an overlay — use the arrows to browse entries. Sleep in the bed to advance to the next day.
 
@@ -90,8 +103,6 @@ Output goes to `dist/`. Zip the contents and upload to itch.io as an HTML projec
 
 ## license
 
-CC BY 4.0 — free to share and adapt with attribution.
+[CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/) — you may share this work with attribution, but may not use it commercially or create derivative works without permission.
 
----
-
-*by Yafira Martinez / [Electrocute Lab](https://electrocute.io)*
+© 2026 Yafira Martinez / [Electrocute Lab](https://electrocute.io)
