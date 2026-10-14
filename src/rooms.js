@@ -103,7 +103,7 @@ skin looks washed out in the mirror. paler than usual. my doctor said chronic fa
     date: "day three",
     text: `i don't really want to write today. i'm writing anyway because not writing feels like letting today win completely.
 
-the bathroom was bad this morning. i'm not going to describe it. if you've had a period like this you already know. i sat on the floor for a while after. that's all i'll say.
+this morning took everything out of me before it even started. if you've had a period like this you already know. i sat on the edge of the tub for a while, just breathing. that's all i'll say.
 
 i look gray. not pale — gray. the anemia makes it worse. the body can't keep up when it's already running low on something as basic as iron.
 
