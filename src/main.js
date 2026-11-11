@@ -68,7 +68,7 @@ style.textContent = `
     max-height: 92%;
     display: flex;
     flex-direction: column;
-    font-family: monospace;
+    font-family: "PixelFont", monospace;
     color: #c8d4a8;
     position: relative;
   }
@@ -122,7 +122,7 @@ style.textContent = `
     border: 1px solid #4a5a38;
     color: #7d8a5e;
     cursor: pointer;
-    font-family: monospace;
+    font-family: "PixelFont", monospace;
     font-size: 10px;
     padding: 3px 8px;
     border-radius: 2px;
