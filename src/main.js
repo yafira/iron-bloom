@@ -658,7 +658,7 @@ function interact() {
           OUTSIDE_START.col * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
         state.player.y =
           OUTSIDE_START.row * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
-        state.player.dir = "down";
+        state.player.dir = "up";
         state.transitioning = false;
         showLine(day.door, 3000);
         setTimeout(() => {
