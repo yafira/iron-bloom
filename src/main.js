@@ -232,6 +232,7 @@ const state = {
   benchSat: false,
   benchDone: false,
   textLocked: false,
+  wentOutside: false,
 };
 
 function currentDay() {
@@ -416,6 +417,7 @@ function restart() {
   state.benchSat = false;
   state.benchDone = false;
   state.textLocked = false;
+  state.wentOutside = false;
   state.player.x = START_POS.col * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
   state.player.y = START_POS.row * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
   state.player.dir = "down";
@@ -643,6 +645,7 @@ function interact() {
       state.transitioning = true;
       setTimeout(() => {
         state.scene = "outside";
+        state.wentOutside = true;
         state.player.x =
           OUTSIDE_START.col * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
         state.player.y =
@@ -692,7 +695,9 @@ function interact() {
   }
   if (tile === 2) {
     if (!state.bedConfirm) {
-      showLine(day.bedPrompt, 3000);
+      // last day: point at the door first if she hasn't been out yet
+      const nudge = !state.wentOutside && day.bedPromptOutside;
+      showLine(nudge || day.bedPrompt, 3000);
       state.bedConfirm = true;
       playChime(2);
     } else {

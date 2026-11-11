@@ -563,6 +563,8 @@ export const DAYS = [
       "you leave it where it is. it'll be here when you come back.",
     journal: "you write the last entry. it feels like finishing something.",
     bedPrompt: "rest, when you're ready.",
+    bedPromptOutside:
+      "rest can wait a little. the door doesn't feel far today.",
     tendLines: [
       "it bloomed, even through all of it. you watered it on your period every day. turns out the plant didn't care.",
     ],
