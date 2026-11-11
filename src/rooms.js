@@ -568,6 +568,9 @@ export const DAYS = [
     tendLines: [
       "it bloomed, even through all of it. you watered it on your period every day. turns out the plant didn't care.",
     ],
+    tendLinesMissed: [
+      "it bloomed anyway. you didn't get to it every day. turns out the plant didn't keep count.",
+    ],
     sleepLine:
       "however you moved through these days — that was enough. the bloom doesn't ask for more than you have.",
     isLast: true,

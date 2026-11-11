@@ -221,6 +221,8 @@ const state = {
     dir: "down",
   },
   tendIndex: 0,
+  daysTended: 0,
+  tendedToday: false,
   bedConfirm: false,
   scene: "room",
   ended: false,
@@ -409,6 +411,8 @@ function restart() {
   state.dayIndex = 0;
   state.plantStage = 0;
   state.tendIndex = 0;
+  state.daysTended = 0;
+  state.tendedToday = false;
   state.bedConfirm = false;
   state.idleTime = 0;
   state.idleLineShown = false;
@@ -677,16 +681,21 @@ function interact() {
     return;
   }
   if (tile === 3) {
-    const lines = day.tendLines;
+    // last day: if some days were skipped, say so instead of "every day"
+    const tendedBefore = state.daysTended - (state.tendedToday ? 1 : 0);
+    const missed = tendedBefore < state.dayIndex;
+    const lines = (missed && day.tendLinesMissed) || day.tendLines;
     if (state.tendIndex < lines.length) {
       showLine(lines[state.tendIndex], 2500);
       playChime(3);
       state.tendIndex++;
       if (state.tendIndex === lines.length) {
-        state.plantStage = Math.min(
-          state.plantStage + 1,
-          PLANT_STAGES.length - 1,
-        );
+        state.daysTended++;
+        state.tendedToday = true;
+        // it always blooms on the last day, however the week went
+        state.plantStage = day.isLast
+          ? PLANT_STAGES.length - 1
+          : Math.min(state.plantStage + 1, PLANT_STAGES.length - 1);
         playChime(3);
       }
     } else {
@@ -725,6 +734,7 @@ function sleep() {
     } else {
       state.dayIndex++;
       state.tendIndex = 0;
+      state.tendedToday = false;
       state.bedConfirm = false;
       state.idleTime = 0;
       state.idleLineShown = false;
