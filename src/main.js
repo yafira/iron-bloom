@@ -65,6 +65,9 @@ style.textContent = `
     padding: 28px 32px 20px;
     max-width: 480px;
     width: 90%;
+    max-height: 92%;
+    display: flex;
+    flex-direction: column;
     font-family: monospace;
     color: #c8d4a8;
     position: relative;
@@ -97,7 +100,11 @@ style.textContent = `
     line-height: 1.9;
     letter-spacing: 0.5px;
     white-space: pre-wrap;
-    min-height: 180px;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: #4a5a38 transparent;
     color: #b8c498;
   }
   #journal-nav {
@@ -138,7 +145,9 @@ function openJournal() {
 function renderJournalPage(unlocked) {
   const entry = JOURNAL_ENTRIES[journalPage];
   document.getElementById("journal-date").textContent = entry.date;
-  document.getElementById("journal-body").textContent = entry.text;
+  const body = document.getElementById("journal-body");
+  body.textContent = entry.text;
+  body.scrollTop = 0;
   document.getElementById("journal-page").textContent =
     `${journalPage + 1} / ${unlocked}`;
   document.getElementById("journal-prev").disabled = journalPage === 0;
@@ -168,11 +177,20 @@ document.getElementById("journal-next").addEventListener("click", () => {
   }
 });
 
-// close journal on Escape or Space
+// close journal on Escape or Space, arrows turn pages and scroll
 window.addEventListener("keydown", (e) => {
-  if (state.journalOpen && (e.key === "Escape" || e.key === " ")) {
+  if (!state.journalOpen) return;
+  if (e.key === "Escape" || e.key === " ") {
     e.preventDefault();
     closeJournal();
+  } else if (e.key === "ArrowLeft") {
+    document.getElementById("journal-prev").click();
+  } else if (e.key === "ArrowRight") {
+    document.getElementById("journal-next").click();
+  } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    document.getElementById("journal-body").scrollTop +=
+      e.key === "ArrowDown" ? 60 : -60;
   }
 });
 
