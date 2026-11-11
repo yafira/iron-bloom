@@ -89,6 +89,7 @@ body {
   font-family: "PixelFont", monospace;
   letter-spacing: 0.8px;
   line-height: 1.65;
+  white-space: pre-line;
   border-radius: 2px;
   z-index: 10;
 }

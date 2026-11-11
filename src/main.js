@@ -211,6 +211,7 @@ window.addEventListener("resize", resize);
 resize();
 
 const IS_TOUCH = window.matchMedia("(pointer: coarse)").matches;
+const AGAIN = IS_TOUCH ? "tap ● to play again" : "press R to play again";
 const PLAYER_SIZE = 22;
 const state = {
   dayIndex: 0,
@@ -757,7 +758,7 @@ function showEnding() {
   updateDayLabel();
   setTimeout(() => {
     showLine(
-      "the bloom is still here. so are you.  (press R to play again)",
+      `the bloom is still here. so are you.\n\n${AGAIN}.`,
       null,
     );
   }, 200);
@@ -794,7 +795,7 @@ function update(dt) {
       state.benchDone = true;
       state.textLocked = false;
       showLine(
-        "if you're reading this and you know this kind of week — i hope you know it ends. not because someone fixes it for you, but because you get through it. the same way i did. one unglamorous day at a time. you’re not alone ♡ \n\nyou made it through. press R to play again.",
+        `${currentDay().benchLine}\n\nyou made it through. ${AGAIN}.`,
         null,
         true,
       );
