@@ -226,13 +226,26 @@ function currentGrid() {
   return ROOM;
 }
 
+// longer lines stay up longer so they can actually be read
+function readMs(line) {
+  return 1500 + line.length * 45;
+}
+
+function hideLine() {
+  clearTimeout(textBox._t);
+  textBox.classList.add("hidden");
+}
+
 function showLine(line, holdMs, force = false) {
   if (state.textLocked && !force) return; // bench narrative lock
   textBox.textContent = line;
   textBox.classList.remove("hidden");
   clearTimeout(textBox._t); // always cancel any previously scheduled hide
   if (holdMs) {
-    textBox._t = setTimeout(() => textBox.classList.add("hidden"), holdMs);
+    textBox._t = setTimeout(
+      () => textBox.classList.add("hidden"),
+      Math.max(holdMs, readMs(line)),
+    );
   }
 }
 
@@ -456,6 +469,7 @@ function facingTile() {
 }
 
 function interact() {
+  if (state.ended) return;
   const day = currentDay();
   const tile = facingTile();
 
@@ -617,7 +631,11 @@ function interact() {
           OUTSIDE_START.row * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
         state.player.dir = "down";
         state.transitioning = false;
-        showLine(day.outsideLine, 4000);
+        showLine(day.door, 3000);
+        setTimeout(() => {
+          if (state.scene === "outside" && !state.benchSat)
+            showLine(day.outsideLine, 4000);
+        }, readMs(day.door));
       }, 1200);
       return;
     }
@@ -664,6 +682,8 @@ function interact() {
     }
     return;
   }
+  // nothing to look at here, so the button just clears the text
+  if (!state.textLocked && !state.benchDone) hideLine();
 }
 
 function sleep() {
@@ -671,6 +691,8 @@ function sleep() {
   showLine(day.sleepLine, null);
   playSleepTone(day.isLast, state.dayIndex);
   state.transitioning = true;
+  // hold the dark a little longer when the line is longer
+  const restMs = Math.max(1600, 1000 + day.sleepLine.length * 35);
   setTimeout(() => {
     if (day.isLast) {
       state.ended = true;
@@ -693,7 +715,7 @@ function sleep() {
       showLine(currentDay().intro, 3000);
       updateDayLabel();
     }
-  }, 1600);
+  }, restMs);
 }
 
 function showEnding() {
