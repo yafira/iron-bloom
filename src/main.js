@@ -348,6 +348,8 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => {
   keys.delete(e.key.toLowerCase());
 });
+// let go of everything if the window loses focus, so she doesn't keep walking
+window.addEventListener("blur", () => keys.clear());
 
 document
   .querySelectorAll(".touch-dpad .touch-btn, #touch-dpad .touch-btn")
