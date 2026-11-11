@@ -729,10 +729,11 @@ function showEnding() {
   }, 200);
 }
 
-function update() {
+function update(dt) {
   if (state.transitioning || state.ended || state.journalOpen) return;
   const energy = currentDay().energyLevel;
-  const speed = (0.8 + energy * 1.6) * (TILE_SIZE / 20);
+  // speed is per second, so slow days feel the same on any screen
+  const speed = (0.8 + energy * 1.6) * (TILE_SIZE / 20) * 60 * dt;
   let dx = 0,
     dy = 0;
   if (keys.has("arrowup") || keys.has("w")) {
@@ -773,7 +774,7 @@ function update() {
     state.idleLineShown = false;
   } else {
     if (facingTile() === 4 && !state.transitioning) {
-      state.idleTime += 1 / 60;
+      state.idleTime += dt;
       if (
         state.idleTime > 4 &&
         !state.idleLineShown &&
@@ -3204,15 +3205,19 @@ function render() {
 }
 
 let loopStarted = false;
-function loop() {
-  update();
+let lastFrame = 0;
+function loop(now) {
+  // time since last frame, capped so a paused tab doesn't jump
+  const dt = lastFrame ? Math.min((now - lastFrame) / 1000, 0.05) : 1 / 60;
+  lastFrame = now;
+  update(dt);
   render();
   requestAnimationFrame(loop);
 }
 function startLoop() {
   if (loopStarted) return;
   loopStarted = true;
-  loop();
+  requestAnimationFrame(loop);
 }
 if (document.fonts && document.fonts.load) {
   document.fonts.load("10px PixelFont").then(startLoop).catch(startLoop);
