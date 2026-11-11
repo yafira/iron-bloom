@@ -3215,7 +3215,7 @@ function drawTitleScreen() {
   ctx.fillText(
     "water the plant. rest the body. repeat.",
     cx,
-    LOGICAL_H / 2 + 54 * S,
+    LOGICAL_H / 2 + 51 * S,
   );
   // controls, so nobody has to guess
   ctx.fillStyle = "#7d6e8c";
@@ -3224,11 +3224,11 @@ function drawTitleScreen() {
       ? "d-pad: move · ●: look · bed: next day"
       : "arrows / wasd: move · space: look · bed: next day",
     cx,
-    LOGICAL_H - 34 * S,
+    LOGICAL_H - 31 * S,
   );
   ctx.fillStyle = "#9c8aac";
   if (Math.sin(t * 2) > 0)
-    ctx.fillText("press any key or tap to begin", cx, LOGICAL_H - 14 * S);
+    ctx.fillText("press any key or tap to begin", cx, LOGICAL_H - 12 * S);
   ctx.textAlign = "left";
 }
 
