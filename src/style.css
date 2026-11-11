@@ -187,4 +187,9 @@ body {
   #touch-controls {
     display: flex;
   }
+  /* text sits up top on touch screens so it doesn't cover the d-pad */
+  #text-box {
+    bottom: auto;
+    top: clamp(30px, 7vw, 56px);
+  }
 }
