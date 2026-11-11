@@ -210,6 +210,7 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
+const IS_TOUCH = window.matchMedia("(pointer: coarse)").matches;
 const PLAYER_SIZE = 22;
 const state = {
   dayIndex: 0,
@@ -3138,7 +3139,7 @@ function drawTitleScreen() {
   }
   ctx.globalAlpha = 1;
   const cx = LOGICAL_W / 2,
-    cy = LOGICAL_H / 2 - 50 * S,
+    cy = LOGICAL_H / 2 - 58 * S,
     sway = Math.sin(t * 0.8) * 3 * S;
   ctx.fillStyle = "#d9a9b5";
   ctx.fillRect(cx - 14 * S, cy + 20 * S, 28 * S, 15 * S);
@@ -3195,17 +3196,26 @@ function drawTitleScreen() {
   ctx.textAlign = "center";
   ctx.fillStyle = "#f6ecf5";
   ctx.font = `${16 * S}px PixelFont, monospace`;
-  ctx.fillText("iron bloom", cx, LOGICAL_H / 2 + 44 * S);
+  ctx.fillText("iron bloom", cx, LOGICAL_H / 2 + 32 * S);
   ctx.font = `${8 * S}px PixelFont, monospace`;
   ctx.fillStyle = "#cbb8d8";
   ctx.fillText(
     "water the plant. rest the body. repeat.",
     cx,
-    LOGICAL_H / 2 + 70 * S,
+    LOGICAL_H / 2 + 54 * S,
+  );
+  // controls, so nobody has to guess
+  ctx.fillStyle = "#7d6e8c";
+  ctx.fillText(
+    IS_TOUCH
+      ? "d-pad: move · ●: look · bed: next day"
+      : "arrows / wasd: move · space: look · bed: next day",
+    cx,
+    LOGICAL_H - 34 * S,
   );
   ctx.fillStyle = "#9c8aac";
   if (Math.sin(t * 2) > 0)
-    ctx.fillText("press any key or tap to begin", cx, LOGICAL_H - 16 * S);
+    ctx.fillText("press any key or tap to begin", cx, LOGICAL_H - 14 * S);
   ctx.textAlign = "left";
 }
 
